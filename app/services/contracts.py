@@ -2,6 +2,9 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
+OrderSnapshotScalar = str | int | float
+OrderSnapshotPayload = dict[str, OrderSnapshotScalar]
+
 
 @dataclass(frozen=True)
 class OpenSessionCommand:
@@ -27,6 +30,19 @@ class CancelStockOrderCommand:
     order_id: str | None = None
     market: str | int | None = None
     order_sysid: str | None = None
+
+
+@dataclass(frozen=True)
+class CancelStockOrderResult:
+    accepted: bool
+    confirmed: bool
+    latest_order: OrderSnapshotPayload | None = None
+    still_cancelable: bool = False
+    message: str = ""
+
+    @property
+    def success(self) -> bool:
+        return self.accepted
 
 
 @dataclass(frozen=True)

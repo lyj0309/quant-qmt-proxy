@@ -81,6 +81,41 @@ def test_real_mode_connect_respects_retry_cooldown(monkeypatch):
     assert thread is None
 
 
+def test_real_mode_connect_uses_configured_xtdc_endpoint(monkeypatch):
+    monkeypatch.setattr(XtDataGateway, "_try_initialize", lambda self: None)
+    gateway = XtDataGateway(
+        Settings(
+            xtquant={
+                "mode": "dev",
+                "data": {
+                    "qmt_userdata_path": "C:/fake-qmt",
+                    "xtdc_host": "127.0.0.1",
+                    "xtdc_port": 58610,
+                },
+            }
+        )
+    )
+    connect_calls = []
+
+    class DummyClient:
+        @staticmethod
+        def is_connected():
+            return True
+
+    class DummyXtData:
+        @staticmethod
+        def connect(**kwargs):
+            connect_calls.append(kwargs)
+            return DummyClient()
+
+    monkeypatch.setattr(xtdata_gateway_module, "xtdata", DummyXtData())
+
+    gateway._connect_worker()
+
+    assert connect_calls == [{"ip": "127.0.0.1", "port": 58610}]
+    assert gateway._initialized is True
+
+
 class FakeArray:
     def __init__(self, values):
         self._values = values

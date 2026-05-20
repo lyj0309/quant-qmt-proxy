@@ -281,13 +281,15 @@ def test_cancel_by_sysid_normalizes_market_to_xt_enum(monkeypatch):
     manager = TradingSessionManager(build_settings("dev", accounts=[simulated_account()]), TradingEventHub())
     session = manager.open_session(OpenSessionCommand(account_id="SIM-001"))
 
-    assert manager.cancel_stock_order(
+    result = manager.cancel_stock_order(
         CancelStockOrderCommand(
             session_id=session["session_id"],
             market="SH",
             order_sysid="SYSID-001",
         )
-    ) is True
+    )
+    assert result.accepted is True
+    assert result.confirmed is False
 
     gateway = manager._sessions[session["session_id"]].gateway
     assert gateway is not None

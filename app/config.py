@@ -50,6 +50,8 @@ class XTQuantDataConfig(BaseModel):
     path: str = "./data"
     config_path: str = "./xtquant/config"
     qmt_userdata_path: str | None = None
+    xtdc_host: str | None = None
+    xtdc_port: int | None = None
     max_queue_size: int = 1000
     max_subscriptions: int = 100
     heartbeat_interval: int = 60
@@ -135,6 +137,19 @@ def _env_flag(name: str, default: bool) -> bool:
     return value.strip().lower() in {"1", "true", "yes", "on"}
 
 
+def _env_optional_int(name: str) -> int | None:
+    value = os.getenv(name)
+    if value is None or not value.strip():
+        return None
+    try:
+        return int(value)
+    except ValueError as exc:
+        raise ConfigurationException(
+            f"invalid integer environment variable {name}: {value}",
+            "INVALID_ENV_INTEGER",
+        ) from exc
+
+
 def _deep_merge(base: Any, overlay: Any) -> Any:
     if not isinstance(base, dict) or not isinstance(overlay, dict):
         return overlay
@@ -214,7 +229,9 @@ def load_config(
     app_env_port = os.getenv("APP_PORT")
     grpc_env_host = os.getenv("GRPC_HOST")
     grpc_env_port = os.getenv("GRPC_PORT")
-    qmt_userdata_override = os.getenv("QMT_USERDATA_PATH")
+    qmt_userdata_override = os.getenv("QMT_USERDATA_PATH") or os.getenv("QMT_USERDATA_DIR")
+    xtdc_host_override = os.getenv("QMT_XTDC_HOST")
+    xtdc_port_override = _env_optional_int("QMT_XTDC_PORT")
     api_keys_override = os.getenv("APP_API_KEYS")
     debug_override = os.getenv("APP_DEBUG")
     enable_prod_orders_override = os.getenv("APP_ENABLE_PROD_ORDERS")
@@ -277,6 +294,12 @@ def load_config(
                 "path": xtquant_data_config.get("path", "./data"),
                 "config_path": xtquant_data_config.get("config_path", "./xtquant/config"),
                 "qmt_userdata_path": qmt_userdata_path,
+                "xtdc_host": xtdc_host_override or xtquant_data_config.get("xtdc_host"),
+                "xtdc_port": (
+                    xtdc_port_override
+                    if xtdc_port_override is not None
+                    else xtquant_data_config.get("xtdc_port")
+                ),
                 "max_queue_size": xtquant_data_config.get("max_queue_size", 1000),
                 "max_subscriptions": xtquant_data_config.get("max_subscriptions", 100),
                 "heartbeat_interval": xtquant_data_config.get(

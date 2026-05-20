@@ -8,7 +8,13 @@ from datetime import datetime
 from typing import Any, Callable, Iterator
 
 from app.config import AccountKind, Settings, XTQuantMode, XTQuantTradingAccountConfig
-from app.services.contracts import CancelStockOrderCommand, OpenSessionCommand, SubmitStockOrderCommand
+from app.services.contracts import (
+    CancelStockOrderCommand,
+    CancelStockOrderResult,
+    OpenSessionCommand,
+    OrderSnapshotPayload,
+    SubmitStockOrderCommand,
+)
 from app.services.trading_event_hub import TradingEventHub
 from app.services.xttrader_gateway import XTQUANT_TRADER_AVAILABLE, XTTraderGateway
 from app.utils.exceptions import TradingServiceException
@@ -33,6 +39,13 @@ class TradingSession:
     trades: list[dict[str, Any]] = field(default_factory=list)
     asset: dict[str, Any] | None = None
     accept_events: bool = True
+
+
+@dataclass(frozen=True)
+class CancelConfirmationResult:
+    confirmed: bool
+    latest_order: OrderSnapshotPayload | None
+    still_cancelable: bool
 
 
 class TradingSessionManager:
@@ -254,21 +267,27 @@ class TradingSessionManager:
         )
         return order
 
-    def cancel_stock_order(self, command: CancelStockOrderCommand) -> bool:
+    def cancel_stock_order(self, command: CancelStockOrderCommand) -> CancelStockOrderResult:
         session = self._get_session(command.session_id)
+        session_order = self._lookup_session_order(session, command)
 
         if session.mode == XTQuantMode.MOCK.value:
-            if command.order_id:
+            if session_order is not None:
                 with self._lock:
-                    order = session.orders.get(command.order_id)
-                    if order:
-                        order["order_status_code"] = 54
-                        order["status_msg"] = "cancelled"
-                        self._publish_event(command.session_id, "order_update", order)
+                    session_order["order_status_code"] = 54
+                    session_order["status_msg"] = "cancelled"
+                    session.orders[session_order["order_id"]] = session_order
+                    self._publish_event(command.session_id, "order_update", session_order)
             logger.info(
                 f"cancelled mock order: session_id={command.session_id}, account_id={session.account_id}, order_id={command.order_id or ''}, order_sysid={command.order_sysid or ''}"
             )
-            return True
+            return CancelStockOrderResult(
+                accepted=True,
+                confirmed=True,
+                latest_order=session_order,
+                still_cancelable=False,
+                message="mock cancel confirmed",
+            )
 
         if not session.orders_enabled:
             logger.warning(
@@ -293,18 +312,132 @@ class TradingSessionManager:
             normalized_market = self._normalize_cancel_market(command.market)
             result = session.gateway.cancel_order_stock_sysid(normalized_market, command.order_sysid)
 
-        success = result == 0
-        if success and command.order_id:
-            with self._lock:
-                order = session.orders.get(command.order_id)
-                if order:
-                    order["order_status_code"] = 54
-                    order["status_msg"] = "cancelled"
-                    self._publish_event(command.session_id, "order_update", order)
-        logger.info(
-            f"cancel order result: session_id={command.session_id}, account_id={session.account_id}, success={success}, order_id={command.order_id or ''}, order_sysid={command.order_sysid or ''}"
+        accepted = result == 0
+        confirmation = CancelConfirmationResult(
+            confirmed=False,
+            latest_order=session_order,
+            still_cancelable=session_order is not None,
         )
-        return success
+        if accepted:
+            confirmation = self._confirm_cancel_result(session, command, session_order)
+        if confirmation.confirmed and confirmation.latest_order is not None:
+            with self._lock:
+                session.orders[confirmation.latest_order["order_id"]] = confirmation.latest_order
+            self._publish_event(command.session_id, "order_update", confirmation.latest_order)
+        message = (
+            "cancel request accepted and confirmed"
+            if accepted and confirmation.confirmed
+            else "cancel request accepted but final state is not confirmed yet"
+            if accepted
+            else "cancel request rejected by xttrader"
+        )
+        logger.info(
+            f"cancel order result: session_id={command.session_id}, account_id={session.account_id}, accepted={accepted}, confirmed={confirmation.confirmed}, still_cancelable={confirmation.still_cancelable}, order_id={command.order_id or ''}, order_sysid={command.order_sysid or ''}"
+        )
+        return CancelStockOrderResult(
+            accepted=accepted,
+            confirmed=confirmation.confirmed,
+            latest_order=confirmation.latest_order,
+            still_cancelable=confirmation.still_cancelable,
+            message=message,
+        )
+
+    def _lookup_session_order(
+        self,
+        session: TradingSession,
+        command: CancelStockOrderCommand,
+    ) -> dict[str, Any] | None:
+        with self._lock:
+            for order in session.orders.values():
+                if self._matches_cancel_target(order, command):
+                    return dict(order)
+        return None
+
+    def _matches_cancel_target(
+        self,
+        order: dict[str, Any],
+        command: CancelStockOrderCommand,
+    ) -> bool:
+        if command.order_id:
+            return str(order.get("order_id", "")) == str(command.order_id)
+        if command.order_sysid:
+            return str(order.get("order_sysid", "")) == str(command.order_sysid)
+        return False
+
+    def _confirm_cancel_result(
+        self,
+        session: TradingSession,
+        command: CancelStockOrderCommand,
+        session_order: OrderSnapshotPayload | None,
+        timeout_sec: float = 2.0,
+        poll_interval_sec: float = 0.2,
+    ) -> CancelConfirmationResult:
+        if not session.gateway:
+            return CancelConfirmationResult(
+                confirmed=False,
+                latest_order=session_order,
+                still_cancelable=session_order is not None,
+            )
+        deadline = time.monotonic() + timeout_sec
+        latest_order = session_order
+        while time.monotonic() <= deadline:
+            full_orders = [
+                self._convert_order(item)
+                for item in (session.gateway.query_stock_orders(cancelable_only=False) or [])
+            ]
+            with self._lock:
+                session.orders = {order["order_id"]: order for order in full_orders}
+            matched_full = next(
+                (order for order in full_orders if self._matches_cancel_target(order, command)),
+                None,
+            )
+            if matched_full is not None:
+                latest_order = matched_full
+                if self._is_cancelled_order(matched_full):
+                    return CancelConfirmationResult(
+                        confirmed=True,
+                        latest_order=matched_full,
+                        still_cancelable=False,
+                    )
+            cancelable_orders = [
+                self._convert_order(item)
+                for item in (session.gateway.query_stock_orders(cancelable_only=True) or [])
+            ]
+            still_cancelable = any(
+                self._matches_cancel_target(order, command) for order in cancelable_orders
+            )
+            if not still_cancelable:
+                if matched_full is not None:
+                    return CancelConfirmationResult(
+                        confirmed=True,
+                        latest_order=matched_full,
+                        still_cancelable=False,
+                    )
+                if session_order is not None:
+                    confirmed = dict(session_order)
+                    confirmed["order_status_code"] = 54
+                    confirmed["status_msg"] = "cancelled"
+                    return CancelConfirmationResult(
+                        confirmed=True,
+                        latest_order=confirmed,
+                        still_cancelable=False,
+                    )
+                return CancelConfirmationResult(
+                    confirmed=True,
+                    latest_order=latest_order,
+                    still_cancelable=False,
+                )
+            time.sleep(poll_interval_sec)
+        return CancelConfirmationResult(
+            confirmed=False,
+            latest_order=latest_order,
+            still_cancelable=True,
+        )
+
+    def _is_cancelled_order(self, order: dict[str, Any]) -> bool:
+        status_code = int(order.get("order_status_code", 0) or 0)
+        status_msg = str(order.get("status_msg", "")).strip().lower()
+        return status_code == 54 or "cancel" in status_msg or "撤" in status_msg
 
     def stream_events(
         self,

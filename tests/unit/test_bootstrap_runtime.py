@@ -97,6 +97,8 @@ def test_load_config_merges_runtime_local_settings_accounts_and_subscription_set
     monkeypatch.setenv("APP_HOST", "127.0.0.1")
     monkeypatch.setenv("APP_PORT", "18080")
     monkeypatch.setenv("GRPC_PORT", "19090")
+    monkeypatch.setenv("QMT_XTDC_HOST", "127.0.0.1")
+    monkeypatch.setenv("QMT_XTDC_PORT", "58610")
     monkeypatch.setenv("APP_API_KEYS", "pytest-key-1,pytest-key-2")
 
     settings = load_config(str(base_file), app_mode="prod", local_config_file=str(local_file))
@@ -111,6 +113,8 @@ def test_load_config_merges_runtime_local_settings_accounts_and_subscription_set
     assert settings.app.port == 18080
     assert settings.grpc_port == 19090
     assert settings.xtquant.data.qmt_userdata_path == "D:/local/qmt"
+    assert settings.xtquant.data.xtdc_host == "127.0.0.1"
+    assert settings.xtquant.data.xtdc_port == 58610
     assert settings.xtquant.trading.enable_prod_orders is True
     assert settings.security.api_keys == ["pytest-key-1", "pytest-key-2"]
     assert settings.testing.default_account_profile == "sim-base"
@@ -118,6 +122,34 @@ def test_load_config_merges_runtime_local_settings_accounts_and_subscription_set
     assert len(settings.xtquant.trading.accounts) == 2
     assert settings.xtquant.trading.accounts[0].account_kind == AccountKind.SIMULATED
     assert settings.xtquant.trading.accounts[1].account_kind == AccountKind.REAL
+
+
+def test_load_config_accepts_qmt_userdata_dir_alias(tmp_path: Path, monkeypatch):
+    config_file = tmp_path / "config.yml"
+    config_file.write_text(
+        yaml.safe_dump(
+            {
+                "app": {"name": "xtquant-proxy"},
+                "modes": {
+                    "dev": {
+                        "debug": True,
+                        "xtquant_mode": "dev",
+                        "api_keys": ["dev-key"],
+                    }
+                },
+                "xtquant": {"data": {"qmt_userdata_path": "D:/config/qmt"}},
+            },
+            allow_unicode=True,
+        ),
+        encoding="utf-8",
+    )
+
+    monkeypatch.delenv("QMT_USERDATA_PATH", raising=False)
+    monkeypatch.setenv("QMT_USERDATA_DIR", "Z:/config/qmt-app/userdata_mini")
+
+    settings = load_config(str(config_file), app_mode="dev", local_config_file=None)
+
+    assert settings.xtquant.data.qmt_userdata_path == "Z:/config/qmt-app/userdata_mini"
 
 
 def test_load_config_keeps_test_local_settings_out_of_runtime_xtdata_path(tmp_path: Path):

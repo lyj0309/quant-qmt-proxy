@@ -183,6 +183,11 @@ message CancelStockOrderRequest {
 message CancelStockOrderResponse {
   bool success = 1;
   qmt.common.Status status = 2;
+  bool confirmed = 3;
+  bool has_latest_order = 4;
+  StockOrder latest_order = 5;
+  bool still_cancelable = 6;
+  string message = 7;
 }
 
 message StreamTradingEventsRequest {

@@ -150,7 +150,7 @@ async def cancel_stock_order(
     trading_manager: TradingSessionManager = Depends(get_trading_session_manager),
 ):
     try:
-        success = trading_manager.cancel_stock_order(
+        result = trading_manager.cancel_stock_order(
             CancelStockOrderCommand(
                 session_id=session_id,
                 order_id=request.order_id,
@@ -159,8 +159,15 @@ async def cancel_stock_order(
             )
         )
         return format_response(
-            data={"success": success},
-            message="撤单成功" if success else "撤单失败",
+            data={
+                "success": result.accepted,
+                "accepted": result.accepted,
+                "confirmed": result.confirmed,
+                "still_cancelable": result.still_cancelable,
+                "latest_order": result.latest_order,
+                "message": result.message,
+            },
+            message="撤单请求已受理" if result.accepted else "撤单请求失败",
         )
     except TradingServiceException as exc:
         raise handle_xtquant_exception(exc)

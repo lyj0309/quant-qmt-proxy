@@ -30,6 +30,9 @@ xtquant:
   data:
     path: "./data"
     config_path: "./xtquant/config"
+    # 可选：让 Linux 侧 xtquant 连接 Wine 内的 xtdatacenter 服务
+    xtdc_host:
+    xtdc_port:
     max_queue_size: 1000
     max_subscriptions: 100
     heartbeat_interval: 60

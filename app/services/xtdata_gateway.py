@@ -139,7 +139,12 @@ class XtDataGateway:
     def _connect_worker(self) -> None:
         result: dict[str, Any] = {"error": None, "client": None}
         try:
-            result["client"] = xtdata.connect()
+            connect_kwargs: dict[str, Any] = {}
+            if self.settings.xtquant.data.xtdc_host:
+                connect_kwargs["ip"] = self.settings.xtquant.data.xtdc_host
+            if self.settings.xtquant.data.xtdc_port is not None:
+                connect_kwargs["port"] = self.settings.xtquant.data.xtdc_port
+            result["client"] = xtdata.connect(**connect_kwargs)
         except Exception as exc:
             result["error"] = exc
 

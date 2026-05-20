@@ -124,8 +124,18 @@ class TradingGrpcService(trading_pb2_grpc.TradingServiceServicer):
             else:
                 raise TradingServiceException("cancel target is required")
 
-            success = self.trading_manager.cancel_stock_order(command)
-            return trading_pb2.CancelStockOrderResponse(success=success, status=self._status())
+            result = self.trading_manager.cancel_stock_order(command)
+            response = trading_pb2.CancelStockOrderResponse(
+                success=result.accepted,
+                confirmed=result.confirmed,
+                has_latest_order=result.latest_order is not None,
+                still_cancelable=result.still_cancelable,
+                message=result.message,
+                status=self._status(),
+            )
+            if result.latest_order is not None:
+                response.latest_order.CopyFrom(self._to_stock_order(result.latest_order))
+            return response
         except TradingServiceException as exc:
             return self._error_response(context, exc, trading_pb2.CancelStockOrderResponse)
 

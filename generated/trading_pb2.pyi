@@ -310,12 +310,22 @@ class CancelStockOrderRequest(_message.Message):
     def __init__(self, session_id: _Optional[str] = ..., order_id: _Optional[str] = ..., sysid_target: _Optional[_Union[CancelBySysIdTarget, _Mapping]] = ...) -> None: ...
 
 class CancelStockOrderResponse(_message.Message):
-    __slots__ = ("success", "status")
+    __slots__ = ("success", "status", "confirmed", "has_latest_order", "latest_order", "still_cancelable", "message")
     SUCCESS_FIELD_NUMBER: _ClassVar[int]
     STATUS_FIELD_NUMBER: _ClassVar[int]
+    CONFIRMED_FIELD_NUMBER: _ClassVar[int]
+    HAS_LATEST_ORDER_FIELD_NUMBER: _ClassVar[int]
+    LATEST_ORDER_FIELD_NUMBER: _ClassVar[int]
+    STILL_CANCELABLE_FIELD_NUMBER: _ClassVar[int]
+    MESSAGE_FIELD_NUMBER: _ClassVar[int]
     success: bool
     status: _common_pb2.Status
-    def __init__(self, success: bool = ..., status: _Optional[_Union[_common_pb2.Status, _Mapping]] = ...) -> None: ...
+    confirmed: bool
+    has_latest_order: bool
+    latest_order: StockOrder
+    still_cancelable: bool
+    message: str
+    def __init__(self, success: bool = ..., status: _Optional[_Union[_common_pb2.Status, _Mapping]] = ..., confirmed: bool = ..., has_latest_order: bool = ..., latest_order: _Optional[_Union[StockOrder, _Mapping]] = ..., still_cancelable: bool = ..., message: _Optional[str] = ...) -> None: ...
 
 class StreamTradingEventsRequest(_message.Message):
     __slots__ = ("session_id",)
