@@ -103,6 +103,7 @@ message QuoteStreamRequest {
 
 message WholeQuoteStreamRequest {
   repeated string markets = 1;
+  repeated string symbols = 2;
 }
 
 message QuoteEvent {

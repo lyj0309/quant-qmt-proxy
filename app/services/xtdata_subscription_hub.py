@@ -223,6 +223,7 @@ class XtDataSubscriptionHub:
             subscription_id=subscription_id,
             subscription_type="whole_quote",
             persistent=persistent,
+            symbols=[symbol.strip().upper() for symbol in spec.symbols if symbol.strip()],
             markets=[market.upper() for market in spec.markets] or ["SH", "SZ"],
             period="tick",
         )
@@ -261,7 +262,13 @@ class XtDataSubscriptionHub:
         self._start_runtime_if_needed()
 
         def callback(payload: dict[str, Any]) -> None:
-            for event in self._normalize_payload(record.period, payload):
+            event_time_ms = int(time.time() * 1000)
+            for event in self._iter_normalized_payload(
+                record.period,
+                payload,
+                event_time_ms=event_time_ms,
+                symbol_filter=None,
+            ):
                 self._fanout(record.subscription_id, event)
 
         native_subids = []
@@ -293,9 +300,16 @@ class XtDataSubscriptionHub:
         if not XTQUANT_DATA_AVAILABLE:
             raise DataServiceException("xtquant.xtdata is unavailable", error_code="XTDATA_UNAVAILABLE")
         self._start_runtime_if_needed()
+        symbol_filter = frozenset(record.symbols)
 
         def callback(payload: dict[str, Any]) -> None:
-            for event in self._normalize_payload("tick", payload):
+            event_time_ms = int(time.time() * 1000)
+            for event in self._iter_normalized_payload(
+                "tick",
+                payload,
+                event_time_ms=event_time_ms,
+                symbol_filter=symbol_filter,
+            ):
                 self._fanout(record.subscription_id, event)
 
         subid = xtdata.subscribe_whole_quote(record.markets or ["SH", "SZ"], callback=callback)
@@ -364,20 +378,34 @@ class XtDataSubscriptionHub:
                         f"subscription queue overflow: subscription_id={subscription_id}, consumer_id={consumer_id}, dropped_total={dropped_total}"
                     )
 
-    def _normalize_payload(self, period: str, payload: dict[str, Any]) -> list[dict[str, Any]]:
+    def _iter_normalized_payload(
+        self,
+        period: str,
+        payload: dict[str, Any],
+        *,
+        event_time_ms: int,
+        symbol_filter: frozenset[str] | None,
+    ) -> Iterator[dict[str, Any]]:
         if not isinstance(payload, dict):
-            return []
-        events: list[dict[str, Any]] = []
-        for symbol, value in payload.items():
+            return
+        for raw_symbol, value in payload.items():
+            symbol = str(raw_symbol).upper()
+            if symbol_filter is not None and symbol_filter and symbol not in symbol_filter:
+                continue
             if isinstance(value, list) and value and isinstance(value[0], dict):
                 for item in value:
-                    events.append(self._build_event(symbol, period, item))
-            else:
-                events.append(self._build_event(symbol, period, value))
-        return events
+                    yield self._build_event(symbol, period, item, event_time_ms=event_time_ms)
+                continue
+            yield self._build_event(symbol, period, value, event_time_ms=event_time_ms)
 
-    def _build_event(self, symbol: str, period: str, payload: Any) -> dict[str, Any]:
-        event_time_ms = int(time.time() * 1000)
+    def _build_event(
+        self,
+        symbol: str,
+        period: str,
+        payload: Any,
+        *,
+        event_time_ms: int,
+    ) -> dict[str, Any]:
         if period == "tick":
             return {
                 "symbol": symbol,

@@ -227,7 +227,10 @@ class DataGrpcService(data_pb2_grpc.DataServiceServicer):
     def StreamWholeQuote(self, request, context):
         try:
             stream = self.market_data_service.stream_whole_quote(
-                WholeQuoteSubscriptionSpec(markets=list(request.markets) or ["SH", "SZ"]),
+                WholeQuoteSubscriptionSpec(
+                    markets=list(request.markets) or ["SH", "SZ"],
+                    symbols=list(request.symbols),
+                ),
                 stop_checker=context.is_active,
             )
             for event in stream:

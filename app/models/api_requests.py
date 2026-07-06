@@ -100,3 +100,4 @@ class QuoteSubscriptionRequestModel(BaseModel):
 
 class WholeQuoteSubscriptionRequestModel(BaseModel):
     markets: list[str] = Field(default_factory=lambda: ["SH", "SZ"])
+    symbols: list[str] = Field(default_factory=list)

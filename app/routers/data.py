@@ -241,7 +241,10 @@ async def create_whole_quote_subscription(
 ):
     try:
         info = ui_subscription_service.create_whole_quote_subscription(
-            WholeQuoteSubscriptionSpec(markets=request.markets)
+            WholeQuoteSubscriptionSpec(
+                markets=request.markets,
+                symbols=request.symbols,
+            )
         )
         return format_response(data=info, message="创建全推订阅成功")
     except DataServiceException as exc:

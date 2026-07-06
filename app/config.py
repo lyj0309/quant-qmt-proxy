@@ -150,6 +150,13 @@ def _env_optional_int(name: str) -> int | None:
         ) from exc
 
 
+def _env_optional_flag(name: str) -> bool | None:
+    value = os.getenv(name)
+    if value is None or not value.strip():
+        return None
+    return value.strip().lower() in {"1", "true", "yes", "on"}
+
+
 def _deep_merge(base: Any, overlay: Any) -> Any:
     if not isinstance(base, dict) or not isinstance(overlay, dict):
         return overlay
@@ -232,6 +239,7 @@ def load_config(
     qmt_userdata_override = os.getenv("QMT_USERDATA_PATH") or os.getenv("QMT_USERDATA_DIR")
     xtdc_host_override = os.getenv("QMT_XTDC_HOST")
     xtdc_port_override = _env_optional_int("QMT_XTDC_PORT")
+    whole_quote_enabled_override = _env_optional_flag("QMT_WHOLE_QUOTE_ENABLED")
     api_keys_override = os.getenv("APP_API_KEYS")
     debug_override = os.getenv("APP_DEBUG")
     enable_prod_orders_override = os.getenv("APP_ENABLE_PROD_ORDERS")
@@ -306,7 +314,11 @@ def load_config(
                     "heartbeat_interval",
                     xtquant_data_config.get("heartbeat_timeout", 60),
                 ),
-                "whole_quote_enabled": xtquant_data_config.get("whole_quote_enabled", False),
+                "whole_quote_enabled": (
+                    whole_quote_enabled_override
+                    if whole_quote_enabled_override is not None
+                    else xtquant_data_config.get("whole_quote_enabled", False)
+                ),
             },
             "trading": {
                 "mock_account_id": xtquant_trading_config.get("mock_account_id", "mock_account_001"),

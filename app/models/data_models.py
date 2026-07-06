@@ -609,6 +609,7 @@ class WholeQuoteRequest(BaseModel):
     """全推订阅请求"""
 
     markets: list[str] = Field(["SH", "SZ"], description="市场列表")
+    symbols: list[str] = Field(default_factory=list, description="可选的股票白名单")
 
 
 class SubscriptionResponse(BaseModel):

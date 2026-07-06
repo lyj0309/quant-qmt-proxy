@@ -99,3 +99,4 @@ class QuoteSubscriptionSpec:
 @dataclass(frozen=True)
 class WholeQuoteSubscriptionSpec:
     markets: list[str]
+    symbols: list[str] = field(default_factory=list)

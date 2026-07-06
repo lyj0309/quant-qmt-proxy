@@ -177,10 +177,12 @@ class QuoteStreamRequest(_message.Message):
     def __init__(self, symbols: _Optional[_Iterable[str]] = ..., period: _Optional[_Union[_common_pb2.QuotePeriod, str]] = ..., start_time: _Optional[str] = ..., adjust_type: _Optional[_Union[_common_pb2.AdjustType, str]] = ..., count: _Optional[int] = ...) -> None: ...
 
 class WholeQuoteStreamRequest(_message.Message):
-    __slots__ = ("markets",)
+    __slots__ = ("markets", "symbols")
     MARKETS_FIELD_NUMBER: _ClassVar[int]
+    SYMBOLS_FIELD_NUMBER: _ClassVar[int]
     markets: _containers.RepeatedScalarFieldContainer[str]
-    def __init__(self, markets: _Optional[_Iterable[str]] = ...) -> None: ...
+    symbols: _containers.RepeatedScalarFieldContainer[str]
+    def __init__(self, markets: _Optional[_Iterable[str]] = ..., symbols: _Optional[_Iterable[str]] = ...) -> None: ...
 
 class QuoteEvent(_message.Message):
     __slots__ = ("symbol", "period", "event_time_ms", "tick", "kline")

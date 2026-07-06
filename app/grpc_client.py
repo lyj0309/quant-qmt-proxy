@@ -158,9 +158,16 @@ class QMTGrpcClient:
             metadata=self._metadata(),
         )
 
-    def stream_whole_quote(self, markets: list[str] | None = None):
+    def stream_whole_quote(
+        self,
+        markets: list[str] | None = None,
+        symbols: list[str] | None = None,
+    ):
         return self.data_stub.StreamWholeQuote(
-            data_pb2.WholeQuoteStreamRequest(markets=markets or ["SH", "SZ"]),
+            data_pb2.WholeQuoteStreamRequest(
+                markets=markets or ["SH", "SZ"],
+                symbols=symbols or [],
+            ),
             metadata=self._metadata(),
         )
 
