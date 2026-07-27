@@ -8,6 +8,7 @@ import uvicorn
 sys.path.insert(0, os.path.dirname(__file__))
 
 from app.config import Settings, _normalize_app_servers, get_settings
+from app.dependencies import get_subscription_hub
 from app.grpc_server import create_grpc_server, serve as serve_grpc
 from app.utils.logger import configure_logging_from_settings, logger
 
@@ -47,6 +48,7 @@ def main() -> None:
     settings.app_servers = _normalize_app_servers(settings.app_servers)
     configure_logging_from_settings(settings)
     print_banner(settings)
+    get_subscription_hub(settings).start_shared_quote_publisher()
 
     if settings.app_servers == "grpc":
         serve_grpc(settings)

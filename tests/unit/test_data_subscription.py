@@ -1,14 +1,14 @@
 import threading
 import time
+
 from types import SimpleNamespace
 
 import pytest
 
 from app.config import Settings
-from app.services.contracts import QuoteSubscriptionSpec, WholeQuoteSubscriptionSpec
-from app.services.xtdata_gateway import to_epoch_ms
-from app.services.xtdata_gateway import XtDataGateway
 from app.services import xtdata_subscription_hub as subscription_hub_module
+from app.services.contracts import QuoteSubscriptionSpec, WholeQuoteSubscriptionSpec
+from app.services.xtdata_gateway import XtDataGateway, to_epoch_ms
 from app.services.xtdata_subscription_hub import XtDataSubscriptionHub
 from app.utils.exceptions import DataServiceException
 
@@ -116,6 +116,7 @@ def test_build_event_maps_kline_payload_time_to_time_ms():
             "high": 11.0,
             "volume": 1200,
         },
+        event_time_ms=1_700_000_000_000,
     )
 
     assert event["payload_type"] == "kline"
@@ -134,6 +135,25 @@ def test_quote_subscription_rejects_tick_full_history_replay():
         )
 
     assert exc.value.error_code == "INVALID_SUBSCRIPTION_COUNT"
+
+
+def test_internal_shared_quote_sink_ignores_public_whole_quote_toggle():
+    settings = Settings(
+        xtquant={
+            "mode": "mock",
+            "data": {"whole_quote_enabled": False},
+        }
+    )
+    hub = XtDataSubscriptionHub(settings, XtDataGateway(settings))
+
+    subscription_id = hub._create_whole_quote_subscription(
+        WholeQuoteSubscriptionSpec(markets=["SH", "SZ"]),
+        persistent=True,
+        shared_quote_sink=True,
+    )
+
+    assert subscription_id.startswith("whole_")
+    hub.shutdown()
 
 
 def test_real_quote_subscription_passes_count_to_xtdata(monkeypatch):

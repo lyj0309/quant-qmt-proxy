@@ -37,6 +37,10 @@ xtquant:
     max_subscriptions: 100
     heartbeat_interval: 60
     whole_quote_enabled: false
+    # Optional same-host latest-quote mmap written directly from whole-market ticks.
+    shared_quote_path:
+    shared_quote_capacity: 65536
+    shared_quote_markets: ["SH", "SZ"]
   trading:
     mock_account_id: "mock_account_001"
     mock_password: "mock_password"

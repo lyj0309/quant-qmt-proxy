@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 import os
+
 from enum import Enum
 from pathlib import Path
 from typing import Any
 
 import yaml
+
 from pydantic import BaseModel, Field
 
 from app.utils.exceptions import ConfigurationException
@@ -56,6 +58,9 @@ class XTQuantDataConfig(BaseModel):
     max_subscriptions: int = 100
     heartbeat_interval: int = 60
     whole_quote_enabled: bool = False
+    shared_quote_path: str | None = None
+    shared_quote_capacity: int = Field(default=65536, gt=0)
+    shared_quote_markets: list[str] = Field(default_factory=lambda: ["SH", "SZ"])
 
 
 class XTQuantTradingAccountConfig(BaseModel):
@@ -240,6 +245,7 @@ def load_config(
     xtdc_host_override = os.getenv("QMT_XTDC_HOST")
     xtdc_port_override = _env_optional_int("QMT_XTDC_PORT")
     whole_quote_enabled_override = _env_optional_flag("QMT_WHOLE_QUOTE_ENABLED")
+    shared_quote_path_override = os.getenv("QMT_SHARED_QUOTE_PATH")
     api_keys_override = os.getenv("APP_API_KEYS")
     debug_override = os.getenv("APP_DEBUG")
     enable_prod_orders_override = os.getenv("APP_ENABLE_PROD_ORDERS")
@@ -318,6 +324,16 @@ def load_config(
                     whole_quote_enabled_override
                     if whole_quote_enabled_override is not None
                     else xtquant_data_config.get("whole_quote_enabled", False)
+                ),
+                "shared_quote_path": (
+                    shared_quote_path_override
+                    or xtquant_data_config.get("shared_quote_path")
+                ),
+                "shared_quote_capacity": xtquant_data_config.get(
+                    "shared_quote_capacity", 65536
+                ),
+                "shared_quote_markets": xtquant_data_config.get(
+                    "shared_quote_markets", ["SH", "SZ"]
                 ),
             },
             "trading": {

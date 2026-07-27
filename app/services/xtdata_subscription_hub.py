@@ -5,11 +5,15 @@ import queue
 import threading
 import time
 import uuid
+
+from collections.abc import AsyncIterator, Callable, Iterator
 from dataclasses import dataclass, field
-from typing import Any, AsyncIterator, Callable, Iterator
+from pathlib import Path
+from typing import Any
 
 from app.config import Settings, XTQuantMode
 from app.services.contracts import QuoteSubscriptionSpec, WholeQuoteSubscriptionSpec
+from app.services.shared_quote_store import SharedQuoteStore
 from app.services.xtdata_gateway import XTQUANT_DATA_AVAILABLE, XtDataGateway, to_epoch_ms
 from app.utils.exceptions import DataServiceException
 from app.utils.logger import logger
@@ -36,6 +40,7 @@ class SubscriptionRecord:
     consumer_queues: dict[str, queue.Queue] = field(default_factory=dict)
     consumer_drop_counts: dict[str, int] = field(default_factory=dict)
     active: bool = True
+    shared_quote_sink: bool = False
 
 
 class XtDataSubscriptionHub:
@@ -48,6 +53,58 @@ class XtDataSubscriptionHub:
         self._runner_started = False
         self._runner_thread: threading.Thread | None = None
         self._runner_last_error: str | None = None
+        self._shared_quote_store: SharedQuoteStore | None = None
+        self._shared_quote_subscription_id: str | None = None
+        self._shared_quote_stop = threading.Event()
+        self._shared_quote_thread: threading.Thread | None = None
+        self._shared_quote_capacity_warned = False
+
+    def start_shared_quote_publisher(self) -> None:
+        path = self.settings.xtquant.data.shared_quote_path
+        if not path or self._shared_quote_thread is not None:
+            return
+        self._shared_quote_store = SharedQuoteStore(
+            Path(path),
+            self.settings.xtquant.data.shared_quote_capacity,
+        )
+        self._shared_quote_stop.clear()
+        self._shared_quote_thread = threading.Thread(
+            target=self._run_shared_quote_publisher,
+            daemon=True,
+            name="shared-quote-publisher",
+        )
+        self._shared_quote_thread.start()
+        logger.info(
+            "shared quote publisher starting: "
+            f"path={path}, capacity={self.settings.xtquant.data.shared_quote_capacity}"
+        )
+
+    def _run_shared_quote_publisher(self) -> None:
+        while not self._shared_quote_stop.is_set():
+            if self._shared_quote_subscription_id is None:
+                try:
+                    self._shared_quote_subscription_id = (
+                        self._create_whole_quote_subscription(
+                            WholeQuoteSubscriptionSpec(
+                                markets=self.settings.xtquant.data.shared_quote_markets
+                            ),
+                            persistent=True,
+                            shared_quote_sink=True,
+                        )
+                    )
+                    if self._shared_quote_store is not None:
+                        self._shared_quote_store.mark_ready()
+                    logger.info(
+                        "shared quote publisher ready: "
+                        f"subscription_id={self._shared_quote_subscription_id}"
+                    )
+                except Exception as exc:
+                    logger.warning(f"shared quote publisher waiting for xtdata: {exc}")
+                    self._shared_quote_stop.wait(1.0)
+                    continue
+            if self._shared_quote_store is not None:
+                self._shared_quote_store.heartbeat()
+            self._shared_quote_stop.wait(1.0)
 
     def _start_runtime_if_needed(self) -> None:
         if self.settings.xtquant.mode == XTQuantMode.MOCK:
@@ -171,10 +228,19 @@ class XtDataSubscriptionHub:
             return [self._serialize_record(record) for record in self._subscriptions.values()]
 
     def shutdown(self) -> None:
+        self._shared_quote_stop.set()
+        shared_thread = self._shared_quote_thread
+        if shared_thread is not None and shared_thread is not threading.current_thread():
+            shared_thread.join(timeout=2.0)
+        self._shared_quote_thread = None
         with self._lock:
             subscription_ids = list(self._subscriptions.keys())
         for subscription_id in subscription_ids:
             self.delete_subscription(subscription_id)
+        self._shared_quote_subscription_id = None
+        if self._shared_quote_store is not None:
+            self._shared_quote_store.close()
+            self._shared_quote_store = None
 
     def _create_quote_subscription(self, spec: QuoteSubscriptionSpec, persistent: bool) -> str:
         if not spec.symbols:
@@ -213,8 +279,17 @@ class XtDataSubscriptionHub:
         )
         return subscription_id
 
-    def _create_whole_quote_subscription(self, spec: WholeQuoteSubscriptionSpec, persistent: bool) -> str:
-        if not self.settings.xtquant.data.whole_quote_enabled:
+    def _create_whole_quote_subscription(
+        self,
+        spec: WholeQuoteSubscriptionSpec,
+        persistent: bool,
+        *,
+        shared_quote_sink: bool = False,
+    ) -> str:
+        if (
+            not shared_quote_sink
+            and not self.settings.xtquant.data.whole_quote_enabled
+        ):
             raise DataServiceException("whole quote subscriptions are disabled by configuration", error_code="WHOLE_QUOTE_DISABLED")
         if self.settings.xtquant.mode == XTQuantMode.MOCK and not persistent:
             logger.info("mock mode whole quote stream enabled for local validation")
@@ -226,6 +301,7 @@ class XtDataSubscriptionHub:
             symbols=[symbol.strip().upper() for symbol in spec.symbols if symbol.strip()],
             markets=[market.upper() for market in spec.markets] or ["SH", "SZ"],
             period="tick",
+            shared_quote_sink=shared_quote_sink,
         )
         with self._lock:
             self._ensure_subscription_capacity_locked()
@@ -310,6 +386,18 @@ class XtDataSubscriptionHub:
                 event_time_ms=event_time_ms,
                 symbol_filter=symbol_filter,
             ):
+                if record.shared_quote_sink and self._shared_quote_store is not None:
+                    written = self._shared_quote_store.write(
+                        event["symbol"],
+                        event["event_time_ms"],
+                        event["data"],
+                    )
+                    if not written and not self._shared_quote_capacity_warned:
+                        self._shared_quote_capacity_warned = True
+                        logger.error(
+                            "shared quote capacity exhausted or symbol invalid: "
+                            f"capacity={self.settings.xtquant.data.shared_quote_capacity}"
+                        )
                 self._fanout(record.subscription_id, event)
 
         subid = xtdata.subscribe_whole_quote(record.markets or ["SH", "SZ"], callback=callback)
