@@ -310,12 +310,82 @@ class XtDataGateway:
             dates = xtdata.get_trading_calendar(query.market, query.start_time, query.end_time)
         except RuntimeError as exc:
             if self._is_feature_not_supported_error(exc):
-                raise DataServiceException(
-                    "trading calendar is not supported by the current QMT client",
-                    error_code="FEATURE_NOT_SUPPORTED",
-                ) from exc
-            raise
+                dates = self._legacy_trading_calendar(query, exc)
+            else:
+                raise
         return {"market": query.market, "dates": [str(item) for item in (dates or [])]}
+
+    def _legacy_trading_calendar(
+        self,
+        query: TradingCalendarQuery,
+        unsupported_error: RuntimeError,
+    ) -> list[str]:
+        get_trading_dates = getattr(xtdata, "get_trading_dates", None)
+        get_holidays = getattr(xtdata, "get_holidays", None)
+        if not callable(get_trading_dates) or not callable(get_holidays):
+            raise DataServiceException(
+                "trading calendar is not supported by the current QMT client",
+                error_code="FEATURE_NOT_SUPPORTED",
+            ) from unsupported_error
+
+        try:
+            download_holidays = getattr(xtdata, "download_holiday_data", None)
+            if callable(download_holidays):
+                try:
+                    download_holidays(True)
+                except RuntimeError as exc:
+                    if not self._is_feature_not_supported_error(exc):
+                        raise
+                    logger.warning(
+                        "QMT holiday incremental download is unsupported; "
+                        "using the broker's existing holiday cache"
+                    )
+            start = datetime.strptime(query.start_time, "%Y%m%d")
+            end = datetime.strptime(query.end_time, "%Y%m%d")
+            holiday_dates = {
+                datetime.strptime(str(item), "%Y%m%d").date()
+                for item in (get_holidays() or [])
+            }
+        except Exception as exc:
+            raise DataServiceException(
+                "QMT holiday data is unavailable for calendar fallback",
+                error_code="FEATURE_NOT_SUPPORTED",
+            ) from exc
+        if not holiday_dates or max(holiday_dates).year < end.year:
+            raise DataServiceException(
+                "QMT holiday data does not cover the requested calendar range",
+                error_code="FEATURE_NOT_SUPPORTED",
+            ) from unsupported_error
+
+        try:
+            historical_dates = {
+                datetime.fromtimestamp(int(item) / 1000).date()
+                for item in (
+                    get_trading_dates(
+                        query.market,
+                        query.start_time,
+                        query.end_time,
+                        -1,
+                    )
+                    or []
+                )
+            }
+        except Exception as exc:
+            raise DataServiceException(
+                "QMT historical trading dates are unavailable for calendar fallback",
+                error_code="FEATURE_NOT_SUPPORTED",
+            ) from exc
+        result = set(historical_dates)
+        cursor = (
+            max(start.date(), max(historical_dates) + timedelta(days=1))
+            if historical_dates
+            else start.date()
+        )
+        while cursor <= end.date():
+            if cursor.weekday() < 5 and cursor not in holiday_dates:
+                result.add(cursor)
+            cursor += timedelta(days=1)
+        return [item.strftime("%Y%m%d") for item in sorted(result)]
 
     def get_index_weight(self, index_code: str) -> dict[str, Any]:
         if self._is_mock_mode():

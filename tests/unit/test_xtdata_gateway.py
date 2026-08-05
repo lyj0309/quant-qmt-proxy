@@ -168,3 +168,49 @@ def test_trading_calendar_unsupported_maps_to_feature_not_supported(monkeypatch)
     with pytest.raises(DataServiceException) as exc:
         gateway.get_trading_calendar(TradingCalendarQuery(market="SH", start_time="20240101", end_time="20240131"))
     assert exc.value.error_code == "FEATURE_NOT_SUPPORTED"
+
+
+def test_trading_calendar_uses_legacy_qmt_calendar_data(monkeypatch):
+    monkeypatch.setattr(XtDataGateway, "_try_initialize", lambda self: setattr(self, "_initialized", True))
+    gateway = XtDataGateway(build_settings("dev"))
+
+    class DummyXtData:
+        @staticmethod
+        def get_trading_calendar(*args, **kwargs):
+            raise RuntimeError("function not realize")
+
+        @staticmethod
+        def download_holiday_data(incrementally=True):
+            assert incrementally is True
+            raise RuntimeError("function not realize")
+
+        @staticmethod
+        def get_holidays():
+            return [20260101, 20260807, 20261231]
+
+        @staticmethod
+        def get_trading_dates(market, start_time, end_time, count):
+            assert (market, start_time, end_time, count) == (
+                "SH",
+                "20260805",
+                "20260810",
+                -1,
+            )
+            return [
+                int(time.mktime(time.strptime("20260806", "%Y%m%d")) * 1000)
+            ]
+
+    monkeypatch.setattr(xtdata_gateway_module, "xtdata", DummyXtData())
+
+    result = gateway.get_trading_calendar(
+        TradingCalendarQuery(
+            market="SH",
+            start_time="20260805",
+            end_time="20260810",
+        )
+    )
+
+    assert result == {
+        "market": "SH",
+        "dates": ["20260806", "20260810"],
+    }
