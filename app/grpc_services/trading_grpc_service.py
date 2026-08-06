@@ -2,11 +2,14 @@ from __future__ import annotations
 
 import grpc
 
-from app.services.contracts import CancelStockOrderCommand, OpenSessionCommand, SubmitStockOrderCommand
+from app.services.contracts import (
+    CancelStockOrderCommand,
+    OpenSessionCommand,
+    SubmitStockOrderCommand,
+)
 from app.services.trading_session_manager import TradingSessionManager
 from app.utils.exceptions import TradingServiceException
 from generated import common_pb2, trading_pb2, trading_pb2_grpc
-
 
 ACCOUNT_TYPE_FROM_PROTO = {
     common_pb2.SECURITY_ACCOUNT_TYPE_STOCK: "STOCK",
@@ -91,6 +94,30 @@ class TradingGrpcService(trading_pb2_grpc.TradingServiceServicer):
             )
         except TradingServiceException as exc:
             return self._error_response(context, exc, trading_pb2.GetStockTradesResponse)
+
+    def GetNewPurchaseLimits(self, request, context):
+        try:
+            limits = self.trading_manager.get_new_purchase_limits(request.session_id)
+            return trading_pb2.GetNewPurchaseLimitsResponse(
+                limits=[trading_pb2.NewPurchaseLimit(**item) for item in limits],
+                status=self._status(),
+            )
+        except TradingServiceException as exc:
+            return self._error_response(
+                context,
+                exc,
+                trading_pb2.GetNewPurchaseLimitsResponse,
+            )
+
+    def GetIpoData(self, request, context):
+        try:
+            instruments = self.trading_manager.get_ipo_data(request.session_id)
+            return trading_pb2.GetIpoDataResponse(
+                instruments=[trading_pb2.IpoInstrument(**item) for item in instruments],
+                status=self._status(),
+            )
+        except TradingServiceException as exc:
+            return self._error_response(context, exc, trading_pb2.GetIpoDataResponse)
 
     def SubmitStockOrder(self, request, context):
         try:

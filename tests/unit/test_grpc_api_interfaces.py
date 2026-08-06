@@ -5,11 +5,11 @@ import time
 
 import grpc
 import pytest
+
 from google.protobuf import empty_pb2
 
 from generated import common_pb2, data_pb2, trading_pb2
 from tests.conftest import GrpcTestContext, XtTestRuntime
-
 
 GRPC_TESTED_METHODS = {
     "GetKlineHistory",
@@ -32,6 +32,8 @@ GRPC_TESTED_METHODS = {
     "GetStockPositions",
     "GetStockOrders",
     "GetStockTrades",
+    "GetNewPurchaseLimits",
+    "GetIpoData",
     "SubmitStockOrder",
     "CancelStockOrder",
     "StreamTradingEvents",
@@ -291,6 +293,18 @@ def test_grpc_trading_session_interfaces(
         metadata=grpc_test_context.metadata,
     )
     assert trades_response.status.code == 0
+
+    limits_response = grpc_test_context.trading_stub.GetNewPurchaseLimits(
+        trading_pb2.GetNewPurchaseLimitsRequest(session_id=session_id),
+        metadata=grpc_test_context.metadata,
+    )
+    assert limits_response.status.code == 0
+
+    ipo_response = grpc_test_context.trading_stub.GetIpoData(
+        trading_pb2.GetIpoDataRequest(session_id=session_id),
+        metadata=grpc_test_context.metadata,
+    )
+    assert ipo_response.status.code == 0
 
     close_response = grpc_test_context.trading_stub.CloseSession(
         trading_pb2.CloseSessionRequest(session_id=session_id),

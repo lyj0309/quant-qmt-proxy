@@ -183,3 +183,11 @@ class XTTraderGateway:
     def query_stock_positions(self) -> Any:
         self.ensure_connected()
         return self.trader.query_stock_positions(self.account)
+
+    def query_new_purchase_limit(self) -> Any:
+        self.ensure_connected()
+        return self.trader.query_new_purchase_limit(self.account)
+
+    def query_ipo_data(self) -> Any:
+        self.ensure_connected()
+        return self.trader.query_ipo_data()

@@ -1,9 +1,18 @@
 from __future__ import annotations
 
 import grpc
+
 from google.protobuf import empty_pb2
 
-from generated import common_pb2, data_pb2, data_pb2_grpc, health_pb2, health_pb2_grpc, trading_pb2, trading_pb2_grpc
+from generated import (
+    common_pb2,
+    data_pb2,
+    data_pb2_grpc,
+    health_pb2,
+    health_pb2_grpc,
+    trading_pb2,
+    trading_pb2_grpc,
+)
 
 
 class QMTGrpcClient:
@@ -57,6 +66,18 @@ class QMTGrpcClient:
     def get_stock_trades(self, session_id: str):
         return self.trading_stub.GetStockTrades(
             trading_pb2.GetStockTradesRequest(session_id=session_id),
+            metadata=self._metadata(),
+        )
+
+    def get_new_purchase_limits(self, session_id: str):
+        return self.trading_stub.GetNewPurchaseLimits(
+            trading_pb2.GetNewPurchaseLimitsRequest(session_id=session_id),
+            metadata=self._metadata(),
+        )
+
+    def get_ipo_data(self, session_id: str):
+        return self.trading_stub.GetIpoData(
+            trading_pb2.GetIpoDataRequest(session_id=session_id),
             metadata=self._metadata(),
         )
 

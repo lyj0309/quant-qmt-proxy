@@ -3,7 +3,7 @@
 import grpc
 import warnings
 
-import generated.trading_pb2 as trading__pb2
+from . import trading_pb2 as trading__pb2
 
 GRPC_GENERATED_VERSION = '1.80.0'
 GRPC_VERSION = grpc.__version__
@@ -69,6 +69,16 @@ class TradingServiceStub(object):
                 request_serializer=trading__pb2.GetStockTradesRequest.SerializeToString,
                 response_deserializer=trading__pb2.GetStockTradesResponse.FromString,
                 _registered_method=True)
+        self.GetNewPurchaseLimits = channel.unary_unary(
+                '/qmt.trading.TradingService/GetNewPurchaseLimits',
+                request_serializer=trading__pb2.GetNewPurchaseLimitsRequest.SerializeToString,
+                response_deserializer=trading__pb2.GetNewPurchaseLimitsResponse.FromString,
+                _registered_method=True)
+        self.GetIpoData = channel.unary_unary(
+                '/qmt.trading.TradingService/GetIpoData',
+                request_serializer=trading__pb2.GetIpoDataRequest.SerializeToString,
+                response_deserializer=trading__pb2.GetIpoDataResponse.FromString,
+                _registered_method=True)
         self.SubmitStockOrder = channel.unary_unary(
                 '/qmt.trading.TradingService/SubmitStockOrder',
                 request_serializer=trading__pb2.SubmitStockOrderRequest.SerializeToString,
@@ -131,6 +141,18 @@ class TradingServiceServicer(object):
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
+    def GetNewPurchaseLimits(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def GetIpoData(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
     def SubmitStockOrder(self, request, context):
         """Missing associated documentation comment in .proto file."""
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
@@ -186,6 +208,16 @@ def add_TradingServiceServicer_to_server(servicer, server):
                     servicer.GetStockTrades,
                     request_deserializer=trading__pb2.GetStockTradesRequest.FromString,
                     response_serializer=trading__pb2.GetStockTradesResponse.SerializeToString,
+            ),
+            'GetNewPurchaseLimits': grpc.unary_unary_rpc_method_handler(
+                    servicer.GetNewPurchaseLimits,
+                    request_deserializer=trading__pb2.GetNewPurchaseLimitsRequest.FromString,
+                    response_serializer=trading__pb2.GetNewPurchaseLimitsResponse.SerializeToString,
+            ),
+            'GetIpoData': grpc.unary_unary_rpc_method_handler(
+                    servicer.GetIpoData,
+                    request_deserializer=trading__pb2.GetIpoDataRequest.FromString,
+                    response_serializer=trading__pb2.GetIpoDataResponse.SerializeToString,
             ),
             'SubmitStockOrder': grpc.unary_unary_rpc_method_handler(
                     servicer.SubmitStockOrder,
@@ -392,6 +424,60 @@ class TradingService(object):
             '/qmt.trading.TradingService/GetStockTrades',
             trading__pb2.GetStockTradesRequest.SerializeToString,
             trading__pb2.GetStockTradesResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def GetNewPurchaseLimits(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/qmt.trading.TradingService/GetNewPurchaseLimits',
+            trading__pb2.GetNewPurchaseLimitsRequest.SerializeToString,
+            trading__pb2.GetNewPurchaseLimitsResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def GetIpoData(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/qmt.trading.TradingService/GetIpoData',
+            trading__pb2.GetIpoDataRequest.SerializeToString,
+            trading__pb2.GetIpoDataResponse.FromString,
             options,
             channel_credentials,
             insecure,

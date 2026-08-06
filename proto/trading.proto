@@ -151,6 +151,39 @@ message GetStockTradesResponse {
   qmt.common.Status status = 2;
 }
 
+message GetNewPurchaseLimitsRequest {
+  string session_id = 1;
+}
+
+message NewPurchaseLimit {
+  string market = 1;
+  int64 quantity = 2;
+}
+
+message GetNewPurchaseLimitsResponse {
+  repeated NewPurchaseLimit limits = 1;
+  qmt.common.Status status = 2;
+}
+
+message GetIpoDataRequest {
+  string session_id = 1;
+}
+
+message IpoInstrument {
+  string stock_code = 1;
+  string name = 2;
+  string instrument_type = 3;
+  int64 min_purchase_quantity = 4;
+  int64 max_purchase_quantity = 5;
+  string purchase_date = 6;
+  double issue_price = 7;
+}
+
+message GetIpoDataResponse {
+  repeated IpoInstrument instruments = 1;
+  qmt.common.Status status = 2;
+}
+
 message SubmitStockOrderRequest {
   string session_id = 1;
   string stock_code = 2;
@@ -238,6 +271,8 @@ service TradingService {
   rpc GetStockPositions(GetStockPositionsRequest) returns (GetStockPositionsResponse);
   rpc GetStockOrders(GetStockOrdersRequest) returns (GetStockOrdersResponse);
   rpc GetStockTrades(GetStockTradesRequest) returns (GetStockTradesResponse);
+  rpc GetNewPurchaseLimits(GetNewPurchaseLimitsRequest) returns (GetNewPurchaseLimitsResponse);
+  rpc GetIpoData(GetIpoDataRequest) returns (GetIpoDataResponse);
   rpc SubmitStockOrder(SubmitStockOrderRequest) returns (SubmitStockOrderResponse);
   rpc CancelStockOrder(CancelStockOrderRequest) returns (CancelStockOrderResponse);
   rpc StreamTradingEvents(StreamTradingEventsRequest) returns (stream TradingEvent);

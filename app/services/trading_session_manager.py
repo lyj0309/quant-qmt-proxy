@@ -204,6 +204,36 @@ class TradingSessionManager:
         with self._lock:
             return list(session.trades)
 
+    def get_new_purchase_limits(self, session_id: str) -> list[dict[str, Any]]:
+        session = self._get_session(session_id)
+        if not session.gateway:
+            return []
+        raw_limits = session.gateway.query_new_purchase_limit() or {}
+        return [
+            {"market": str(market).strip().upper(), "quantity": int(quantity)}
+            for market, quantity in sorted(raw_limits.items())
+            if str(market).strip() and int(quantity) >= 0
+        ]
+
+    def get_ipo_data(self, session_id: str) -> list[dict[str, Any]]:
+        session = self._get_session(session_id)
+        if not session.gateway:
+            return []
+        raw_instruments = session.gateway.query_ipo_data() or {}
+        return [
+            {
+                "stock_code": str(stock_code).strip().upper(),
+                "name": str(info.get("name", "")).strip(),
+                "instrument_type": str(info.get("type", "")).strip().upper(),
+                "min_purchase_quantity": int(info.get("minPurchaseNum", 0) or 0),
+                "max_purchase_quantity": int(info.get("maxPurchaseNum", 0) or 0),
+                "purchase_date": str(info.get("purchaseDate", "")).strip(),
+                "issue_price": float(info.get("issuePrice", 0.0) or 0.0),
+            }
+            for stock_code, info in sorted(raw_instruments.items())
+            if str(stock_code).strip() and isinstance(info, dict)
+        ]
+
     def submit_stock_order(self, command: SubmitStockOrderCommand) -> dict[str, Any]:
         session = self._get_session(command.session_id)
         if not validate_stock_code(command.stock_code):

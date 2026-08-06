@@ -47,6 +47,21 @@ class FakeGateway:
     def query_stock_trades(self):
         return []
 
+    def query_new_purchase_limit(self):
+        return {"SH": 7300, "SZ": 4100, "KCB": 6200}
+
+    def query_ipo_data(self):
+        return {
+            "754001.SH": {
+                "name": "测试发债",
+                "type": "BOND",
+                "minPurchaseNum": 10,
+                "maxPurchaseNum": 10000,
+                "purchaseDate": "20260806",
+                "issuePrice": 100.0,
+            }
+        }
+
     def order_stock(
         self,
         stock_code: str,
@@ -182,6 +197,20 @@ def test_open_session_uses_real_gateway_in_dev_for_registered_simulated_account(
     assert session["account_kind"] == "simulated"
     assert session["orders_enabled"] is True
     assert manager.get_stock_asset(session["session_id"])["total_asset"] == 351000.0
+    assert manager.get_new_purchase_limits(session["session_id"]) == [
+        {"market": "KCB", "quantity": 6200},
+        {"market": "SH", "quantity": 7300},
+        {"market": "SZ", "quantity": 4100},
+    ]
+    assert manager.get_ipo_data(session["session_id"])[0] == {
+        "stock_code": "754001.SH",
+        "name": "测试发债",
+        "instrument_type": "BOND",
+        "min_purchase_quantity": 10,
+        "max_purchase_quantity": 10000,
+        "purchase_date": "20260806",
+        "issue_price": 100.0,
+    }
 
 
 def test_open_session_rejects_unregistered_real_account_in_dev(monkeypatch):

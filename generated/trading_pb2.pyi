@@ -29,7 +29,7 @@ class SessionInfo(_message.Message):
     account_kind: str
     orders_enabled: bool
     account_profile: str
-    def __init__(self, session_id: _Optional[str] = ..., account_id: _Optional[str] = ..., account_type: _Optional[_Union[_common_pb2.SecurityAccountType, str]] = ..., is_real: bool = ..., mode: _Optional[str] = ..., opened_at_ms: _Optional[int] = ..., environment: _Optional[str] = ..., account_kind: _Optional[str] = ..., orders_enabled: bool = ..., account_profile: _Optional[str] = ...) -> None: ...
+    def __init__(self, session_id: _Optional[str] = ..., account_id: _Optional[str] = ..., account_type: _Optional[_Union[_common_pb2.SecurityAccountType, str]] = ..., is_real: _Optional[bool] = ..., mode: _Optional[str] = ..., opened_at_ms: _Optional[int] = ..., environment: _Optional[str] = ..., account_kind: _Optional[str] = ..., orders_enabled: _Optional[bool] = ..., account_profile: _Optional[str] = ...) -> None: ...
 
 class OpenSessionRequest(_message.Message):
     __slots__ = ("account_id", "account_type")
@@ -59,7 +59,7 @@ class CloseSessionResponse(_message.Message):
     STATUS_FIELD_NUMBER: _ClassVar[int]
     success: bool
     status: _common_pb2.Status
-    def __init__(self, success: bool = ..., status: _Optional[_Union[_common_pb2.Status, _Mapping]] = ...) -> None: ...
+    def __init__(self, success: _Optional[bool] = ..., status: _Optional[_Union[_common_pb2.Status, _Mapping]] = ...) -> None: ...
 
 class GetSessionRequest(_message.Message):
     __slots__ = ("session_id",)
@@ -159,7 +159,7 @@ class GetStockOrdersRequest(_message.Message):
     CANCELABLE_ONLY_FIELD_NUMBER: _ClassVar[int]
     session_id: str
     cancelable_only: bool
-    def __init__(self, session_id: _Optional[str] = ..., cancelable_only: bool = ...) -> None: ...
+    def __init__(self, session_id: _Optional[str] = ..., cancelable_only: _Optional[bool] = ...) -> None: ...
 
 class StockOrder(_message.Message):
     __slots__ = ("account_id", "stock_code", "instrument_name", "order_id", "order_sysid", "order_time_ms", "order_type", "order_volume", "price_type", "price", "traded_volume", "traded_price", "order_status_code", "status_msg", "strategy_name", "order_remark", "direction", "offset_flag", "secu_account")
@@ -263,6 +263,60 @@ class GetStockTradesResponse(_message.Message):
     status: _common_pb2.Status
     def __init__(self, trades: _Optional[_Iterable[_Union[StockTrade, _Mapping]]] = ..., status: _Optional[_Union[_common_pb2.Status, _Mapping]] = ...) -> None: ...
 
+class GetNewPurchaseLimitsRequest(_message.Message):
+    __slots__ = ("session_id",)
+    SESSION_ID_FIELD_NUMBER: _ClassVar[int]
+    session_id: str
+    def __init__(self, session_id: _Optional[str] = ...) -> None: ...
+
+class NewPurchaseLimit(_message.Message):
+    __slots__ = ("market", "quantity")
+    MARKET_FIELD_NUMBER: _ClassVar[int]
+    QUANTITY_FIELD_NUMBER: _ClassVar[int]
+    market: str
+    quantity: int
+    def __init__(self, market: _Optional[str] = ..., quantity: _Optional[int] = ...) -> None: ...
+
+class GetNewPurchaseLimitsResponse(_message.Message):
+    __slots__ = ("limits", "status")
+    LIMITS_FIELD_NUMBER: _ClassVar[int]
+    STATUS_FIELD_NUMBER: _ClassVar[int]
+    limits: _containers.RepeatedCompositeFieldContainer[NewPurchaseLimit]
+    status: _common_pb2.Status
+    def __init__(self, limits: _Optional[_Iterable[_Union[NewPurchaseLimit, _Mapping]]] = ..., status: _Optional[_Union[_common_pb2.Status, _Mapping]] = ...) -> None: ...
+
+class GetIpoDataRequest(_message.Message):
+    __slots__ = ("session_id",)
+    SESSION_ID_FIELD_NUMBER: _ClassVar[int]
+    session_id: str
+    def __init__(self, session_id: _Optional[str] = ...) -> None: ...
+
+class IpoInstrument(_message.Message):
+    __slots__ = ("stock_code", "name", "instrument_type", "min_purchase_quantity", "max_purchase_quantity", "purchase_date", "issue_price")
+    STOCK_CODE_FIELD_NUMBER: _ClassVar[int]
+    NAME_FIELD_NUMBER: _ClassVar[int]
+    INSTRUMENT_TYPE_FIELD_NUMBER: _ClassVar[int]
+    MIN_PURCHASE_QUANTITY_FIELD_NUMBER: _ClassVar[int]
+    MAX_PURCHASE_QUANTITY_FIELD_NUMBER: _ClassVar[int]
+    PURCHASE_DATE_FIELD_NUMBER: _ClassVar[int]
+    ISSUE_PRICE_FIELD_NUMBER: _ClassVar[int]
+    stock_code: str
+    name: str
+    instrument_type: str
+    min_purchase_quantity: int
+    max_purchase_quantity: int
+    purchase_date: str
+    issue_price: float
+    def __init__(self, stock_code: _Optional[str] = ..., name: _Optional[str] = ..., instrument_type: _Optional[str] = ..., min_purchase_quantity: _Optional[int] = ..., max_purchase_quantity: _Optional[int] = ..., purchase_date: _Optional[str] = ..., issue_price: _Optional[float] = ...) -> None: ...
+
+class GetIpoDataResponse(_message.Message):
+    __slots__ = ("instruments", "status")
+    INSTRUMENTS_FIELD_NUMBER: _ClassVar[int]
+    STATUS_FIELD_NUMBER: _ClassVar[int]
+    instruments: _containers.RepeatedCompositeFieldContainer[IpoInstrument]
+    status: _common_pb2.Status
+    def __init__(self, instruments: _Optional[_Iterable[_Union[IpoInstrument, _Mapping]]] = ..., status: _Optional[_Union[_common_pb2.Status, _Mapping]] = ...) -> None: ...
+
 class SubmitStockOrderRequest(_message.Message):
     __slots__ = ("session_id", "stock_code", "side", "price_type", "volume", "price", "strategy_name", "order_remark")
     SESSION_ID_FIELD_NUMBER: _ClassVar[int]
@@ -325,7 +379,7 @@ class CancelStockOrderResponse(_message.Message):
     latest_order: StockOrder
     still_cancelable: bool
     message: str
-    def __init__(self, success: bool = ..., status: _Optional[_Union[_common_pb2.Status, _Mapping]] = ..., confirmed: bool = ..., has_latest_order: bool = ..., latest_order: _Optional[_Union[StockOrder, _Mapping]] = ..., still_cancelable: bool = ..., message: _Optional[str] = ...) -> None: ...
+    def __init__(self, success: _Optional[bool] = ..., status: _Optional[_Union[_common_pb2.Status, _Mapping]] = ..., confirmed: _Optional[bool] = ..., has_latest_order: _Optional[bool] = ..., latest_order: _Optional[_Union[StockOrder, _Mapping]] = ..., still_cancelable: _Optional[bool] = ..., message: _Optional[str] = ...) -> None: ...
 
 class StreamTradingEventsRequest(_message.Message):
     __slots__ = ("session_id",)
