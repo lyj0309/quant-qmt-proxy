@@ -8,7 +8,11 @@ from app.models.api_requests import (
     OpenSessionRequestModel,
     SubmitStockOrderRequestModel,
 )
-from app.services.contracts import CancelStockOrderCommand, OpenSessionCommand, SubmitStockOrderCommand
+from app.services.contracts import (
+    CancelStockOrderCommand,
+    OpenSessionCommand,
+    SubmitStockOrderCommand,
+)
 from app.services.trading_session_manager import TradingSessionManager
 from app.utils.exceptions import TradingServiceException, handle_xtquant_exception
 from app.utils.helpers import format_response
@@ -117,6 +121,105 @@ async def get_stock_trades(
         raise handle_xtquant_exception(exc)
 
 
+@router.get("/sessions/{session_id}/credit/detail")
+async def get_credit_detail(
+    session_id: str,
+    api_key: str | None = Depends(verify_api_key),
+    trading_manager: TradingSessionManager = Depends(get_trading_session_manager),
+):
+    try:
+        return format_response(
+            data={"items": trading_manager.get_credit_detail(session_id)},
+            message="获取信用资产成功",
+        )
+    except TradingServiceException as exc:
+        raise handle_xtquant_exception(exc)
+
+
+@router.get("/sessions/{session_id}/credit/compacts")
+async def get_credit_compacts(
+    session_id: str,
+    instrument_id: list[str] | None = None,
+    api_key: str | None = Depends(verify_api_key),
+    trading_manager: TradingSessionManager = Depends(get_trading_session_manager),
+):
+    try:
+        return format_response(
+            data={
+                "items": trading_manager.get_credit_compacts(
+                    session_id,
+                    tuple(instrument_id or ()),
+                )
+            },
+            message="获取信用负债合约成功",
+        )
+    except TradingServiceException as exc:
+        raise handle_xtquant_exception(exc)
+
+
+@router.get("/sessions/{session_id}/credit/subjects")
+async def get_credit_subjects(
+    session_id: str,
+    instrument_id: list[str] | None = None,
+    api_key: str | None = Depends(verify_api_key),
+    trading_manager: TradingSessionManager = Depends(get_trading_session_manager),
+):
+    try:
+        return format_response(
+            data={
+                "items": trading_manager.get_credit_subjects(
+                    session_id,
+                    tuple(instrument_id or ()),
+                )
+            },
+            message="获取融资融券标的成功",
+        )
+    except TradingServiceException as exc:
+        raise handle_xtquant_exception(exc)
+
+
+@router.get("/sessions/{session_id}/credit/slo-codes")
+async def get_credit_slo_codes(
+    session_id: str,
+    instrument_id: list[str] | None = None,
+    api_key: str | None = Depends(verify_api_key),
+    trading_manager: TradingSessionManager = Depends(get_trading_session_manager),
+):
+    try:
+        return format_response(
+            data={
+                "items": trading_manager.get_credit_slo_codes(
+                    session_id,
+                    tuple(instrument_id or ()),
+                )
+            },
+            message="获取可融券数据成功",
+        )
+    except TradingServiceException as exc:
+        raise handle_xtquant_exception(exc)
+
+
+@router.get("/sessions/{session_id}/credit/assures")
+async def get_credit_assures(
+    session_id: str,
+    instrument_id: list[str] | None = None,
+    api_key: str | None = Depends(verify_api_key),
+    trading_manager: TradingSessionManager = Depends(get_trading_session_manager),
+):
+    try:
+        return format_response(
+            data={
+                "items": trading_manager.get_credit_assures(
+                    session_id,
+                    tuple(instrument_id or ()),
+                )
+            },
+            message="获取担保品数据成功",
+        )
+    except TradingServiceException as exc:
+        raise handle_xtquant_exception(exc)
+
+
 @router.post("/sessions/{session_id}/orders")
 async def submit_stock_order(
     session_id: str,
@@ -129,7 +232,11 @@ async def submit_stock_order(
             SubmitStockOrderCommand(
                 session_id=session_id,
                 stock_code=request.stock_code,
-                side=SIDE_TO_XT[request.side],
+                side=(
+                    request.credit_action.value
+                    if request.credit_action is not None
+                    else SIDE_TO_XT[request.side]
+                ),
                 price_type=request.price_type,
                 volume=request.volume,
                 price=request.price,

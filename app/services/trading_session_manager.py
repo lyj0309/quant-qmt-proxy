@@ -3,9 +3,12 @@ from __future__ import annotations
 import threading
 import time
 import uuid
+
+from collections.abc import Callable, Iterator
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Any, Callable, Iterator
+from enum import IntEnum
+from typing import Any
 
 from app.config import AccountKind, Settings, XTQuantMode, XTQuantTradingAccountConfig
 from app.services.contracts import (
@@ -14,6 +17,20 @@ from app.services.contracts import (
     OpenSessionCommand,
     OrderSnapshotPayload,
     SubmitStockOrderCommand,
+)
+from app.services.credit import (
+    CreditAssurePayload,
+    CreditCompactPayload,
+    CreditDetailPayload,
+    CreditOrderAction,
+    CreditSloCodePayload,
+    CreditSubjectPayload,
+    convert_credit_assure,
+    convert_credit_compact,
+    convert_credit_detail,
+    convert_credit_slo_code,
+    convert_credit_subject,
+    credit_symbol_matches,
 )
 from app.services.trading_event_hub import TradingEventHub
 from app.services.xttrader_gateway import XTQUANT_TRADER_AVAILABLE, XTTraderGateway
@@ -46,6 +63,15 @@ class CancelConfirmationResult:
     confirmed: bool
     latest_order: OrderSnapshotPayload | None
     still_cancelable: bool
+
+
+class XtOrderStatus(IntEnum):
+    """Terminal xtquant order states needed for idempotent cancellation."""
+
+    PARTIALLY_FILLED_CANCELLED = 53
+    CANCELLED = 54
+    FILLED = 56
+    REJECTED = 57
 
 
 class TradingSessionManager:
@@ -204,6 +230,80 @@ class TradingSessionManager:
         with self._lock:
             return list(session.trades)
 
+    def get_credit_detail(self, session_id: str) -> list[CreditDetailPayload]:
+        """Return credit assets for one CREDIT session."""
+        session = self._require_credit_session(session_id)
+        if session.gateway is None:
+            return []
+        return [
+            convert_credit_detail(item)
+            for item in session.gateway.query_credit_detail()
+        ]
+
+    def get_credit_compacts(
+        self,
+        session_id: str,
+        instrument_ids: tuple[str, ...] = (),
+    ) -> list[CreditCompactPayload]:
+        """Return outstanding credit contracts, optionally filtered by symbol."""
+        session = self._require_credit_session(session_id)
+        if session.gateway is None:
+            return []
+        requested = self._credit_instrument_filter(instrument_ids)
+        return [
+            convert_credit_compact(item)
+            for item in session.gateway.query_credit_compacts()
+            if credit_symbol_matches(item.instrument_id, requested)
+        ]
+
+    def get_credit_subjects(
+        self,
+        session_id: str,
+        instrument_ids: tuple[str, ...] = (),
+    ) -> list[CreditSubjectPayload]:
+        """Return financing and short-selling eligibility by instrument."""
+        session = self._require_credit_session(session_id)
+        if session.gateway is None:
+            return []
+        requested = self._credit_instrument_filter(instrument_ids)
+        return [
+            convert_credit_subject(item)
+            for item in session.gateway.query_credit_subjects()
+            if credit_symbol_matches(item.instrument_id, requested)
+        ]
+
+    def get_credit_slo_codes(
+        self,
+        session_id: str,
+        instrument_ids: tuple[str, ...] = (),
+    ) -> list[CreditSloCodePayload]:
+        """Return available securities-lending inventory."""
+        session = self._require_credit_session(session_id)
+        if session.gateway is None:
+            return []
+        requested = self._credit_instrument_filter(instrument_ids)
+        return [
+            convert_credit_slo_code(item)
+            for item in session.gateway.query_credit_slo_codes()
+            if credit_symbol_matches(item.instrument_id, requested)
+        ]
+
+    def get_credit_assures(
+        self,
+        session_id: str,
+        instrument_ids: tuple[str, ...] = (),
+    ) -> list[CreditAssurePayload]:
+        """Return collateral eligibility and conversion ratios."""
+        session = self._require_credit_session(session_id)
+        if session.gateway is None:
+            return []
+        requested = self._credit_instrument_filter(instrument_ids)
+        return [
+            convert_credit_assure(item)
+            for item in session.gateway.query_credit_assures()
+            if credit_symbol_matches(item.instrument_id, requested)
+        ]
+
     def get_new_purchase_limits(self, session_id: str) -> list[dict[str, Any]]:
         session = self._get_session(session_id)
         if not session.gateway:
@@ -238,6 +338,7 @@ class TradingSessionManager:
         session = self._get_session(command.session_id)
         if not validate_stock_code(command.stock_code):
             raise TradingServiceException(f"invalid stock code: {command.stock_code}", "INVALID_STOCK_CODE")
+        self._validate_order_action(session, command.side)
 
         if session.mode == XTQuantMode.MOCK.value:
             order = self._build_mock_order(session, command)
@@ -467,7 +568,33 @@ class TradingSessionManager:
     def _is_cancelled_order(self, order: dict[str, Any]) -> bool:
         status_code = int(order.get("order_status_code", 0) or 0)
         status_msg = str(order.get("status_msg", "")).strip().lower()
-        return status_code == 54 or "cancel" in status_msg or "撤" in status_msg
+        return (
+            status_code
+            in {
+                XtOrderStatus.CANCELLED.value,
+                XtOrderStatus.PARTIALLY_FILLED_CANCELLED.value,
+            }
+            or "cancel" in status_msg
+            or "撤" in status_msg
+        )
+
+    def _is_terminal_order(self, order: OrderSnapshotPayload) -> bool:
+        status_code = int(order.get("order_status_code", 0) or 0)
+        return status_code in {status.value for status in XtOrderStatus}
+
+    def _find_session_order(
+        self,
+        session: TradingSession,
+        order_id: str,
+        order_sysid: str,
+    ) -> OrderSnapshotPayload | None:
+        with self._lock:
+            if order_id and order_id in session.orders:
+                return dict(session.orders[order_id])
+            for order in session.orders.values():
+                if order_sysid and str(order.get("order_sysid", "")) == order_sysid:
+                    return dict(order)
+        return None
 
     def stream_events(
         self,
@@ -540,6 +667,43 @@ class TradingSessionManager:
 
     def _normalize_account_type(self, value: str | None) -> str:
         return (value or "STOCK").strip().upper()
+
+    def _require_credit_session(self, session_id: str) -> TradingSession:
+        session = self._get_session(session_id)
+        if session.account_type != "CREDIT":
+            raise TradingServiceException(
+                "credit query requires a CREDIT account session",
+                "CREDIT_ACCOUNT_REQUIRED",
+            )
+        return session
+
+    @staticmethod
+    def _credit_instrument_filter(values: tuple[str, ...]) -> frozenset[str]:
+        return frozenset(
+            value.strip().upper()
+            for value in values
+            if value.strip()
+        )
+
+    @staticmethod
+    def _validate_order_action(session: TradingSession, action_value: int) -> None:
+        if session.account_type == "CREDIT":
+            try:
+                CreditOrderAction(action_value)
+            except ValueError as exc:
+                raise TradingServiceException(
+                    f"unsupported CREDIT order action: {action_value}",
+                    "INVALID_CREDIT_ORDER_ACTION",
+                ) from exc
+            return
+        if action_value not in {
+            CreditOrderAction.COLLATERAL_BUY.value,
+            CreditOrderAction.COLLATERAL_SELL.value,
+        }:
+            raise TradingServiceException(
+                "credit order action requires a CREDIT account session",
+                "CREDIT_ACCOUNT_REQUIRED",
+            )
 
     def _normalize_cancel_market(self, value: str | int) -> int:
         if isinstance(value, int):
@@ -769,15 +933,40 @@ class TradingSessionManager:
             )
             return
         if event_type == "cancel_error":
+            order_id = str(getattr(payload, "order_id", ""))
+            order_sysid = str(getattr(payload, "order_sysid", ""))
+            error_id = int(getattr(payload, "error_id", 0) or 0)
+            error_msg = str(getattr(payload, "error_msg", ""))
+            latest_order = self._find_session_order(
+                session,
+                order_id,
+                order_sysid,
+            )
+            if latest_order is not None and self._is_terminal_order(latest_order):
+                logger.info(
+                    "ignored cancel error for terminal order: "
+                    f"session_id={session_id}, order_id={order_id}, "
+                    f"order_sysid={order_sysid}, "
+                    f"order_status_code={latest_order['order_status_code']}, "
+                    f"error_id={error_id}, error_msg={error_msg}"
+                )
+                self._publish_event(session_id, "order_update", latest_order)
+                return
+            logger.error(
+                "xttrader cancel failed: "
+                f"session_id={session_id}, order_id={order_id}, "
+                f"order_sysid={order_sysid}, error_id={error_id}, "
+                f"error_msg={error_msg}"
+            )
             self._publish_event(
                 session_id,
                 "cancel_error",
                 {
                     "account_id": str(getattr(payload, "account_id", "")),
-                    "order_id": str(getattr(payload, "order_id", "")),
-                    "order_sysid": str(getattr(payload, "order_sysid", "")),
-                    "error_id": int(getattr(payload, "error_id", 0) or 0),
-                    "error_msg": str(getattr(payload, "error_msg", "")),
+                    "order_id": order_id,
+                    "order_sysid": order_sysid,
+                    "error_id": error_id,
+                    "error_msg": error_msg,
                 },
             )
 

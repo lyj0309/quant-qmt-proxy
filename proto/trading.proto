@@ -151,6 +151,126 @@ message GetStockTradesResponse {
   qmt.common.Status status = 2;
 }
 
+message GetCreditDetailRequest {
+  string session_id = 1;
+}
+
+message CreditDetail {
+  string account_id = 1;
+  qmt.common.SecurityAccountType account_type = 2;
+  int32 status_code = 3;
+  int64 update_time = 4;
+  int32 calc_config = 5;
+  double frozen_cash = 6;
+  double balance = 7;
+  double available = 8;
+  double position_profit = 9;
+  double market_value = 10;
+  double fetch_balance = 11;
+  double stock_value = 12;
+  double fund_value = 13;
+  double total_debt = 14;
+  double enable_bail_balance = 15;
+  double maintenance_collateral_ratio = 16;
+  double assure_asset = 17;
+  double financing_debt = 18;
+  double financing_principal = 19;
+  double financing_fee = 20;
+  double securities_lending_debt = 21;
+  double securities_lending_market_value = 22;
+  double securities_lending_fee = 23;
+  double other_fee = 24;
+  double financing_max_quota = 25;
+  double financing_available_quota = 26;
+  double financing_used_quota = 27;
+  double securities_lending_max_quota = 28;
+  double securities_lending_available_quota = 29;
+  double securities_lending_used_quota = 30;
+  double short_sale_cash = 31;
+  double used_short_sale_cash = 32;
+  double remaining_short_sale_cash = 33;
+}
+
+message GetCreditDetailResponse {
+  repeated CreditDetail details = 1;
+  qmt.common.Status status = 2;
+}
+
+message CreditInstrumentFilterRequest {
+  string session_id = 1;
+  repeated string instrument_ids = 2;
+}
+
+message CreditCompact {
+  string account_id = 1;
+  qmt.common.SecurityAccountType account_type = 2;
+  int32 compact_type = 3;
+  int32 cashgroup_prop = 4;
+  int32 exchange_id = 5;
+  int32 open_date = 6;
+  int64 business_volume = 7;
+  int64 outstanding_volume = 8;
+  int32 due_date = 9;
+  double business_balance = 10;
+  double business_fee = 11;
+  double outstanding_balance = 12;
+  double outstanding_fee = 13;
+  double repaid_fee = 14;
+  double repaid_balance = 15;
+  string instrument_id = 16;
+  string compact_id = 17;
+  string position_str = 18;
+}
+
+message GetCreditCompactsResponse {
+  repeated CreditCompact compacts = 1;
+  qmt.common.Status status = 2;
+}
+
+message CreditSubject {
+  string account_id = 1;
+  qmt.common.SecurityAccountType account_type = 2;
+  int32 short_sell_status = 3;
+  int32 financing_status = 4;
+  int32 exchange_id = 5;
+  double short_sell_margin_ratio = 6;
+  double financing_margin_ratio = 7;
+  string instrument_id = 8;
+}
+
+message GetCreditSubjectsResponse {
+  repeated CreditSubject subjects = 1;
+  qmt.common.Status status = 2;
+}
+
+message CreditSloCode {
+  string account_id = 1;
+  qmt.common.SecurityAccountType account_type = 2;
+  int32 cashgroup_prop = 3;
+  int32 exchange_id = 4;
+  int64 available_quantity = 5;
+  string instrument_id = 6;
+}
+
+message GetCreditSloCodesResponse {
+  repeated CreditSloCode instruments = 1;
+  qmt.common.Status status = 2;
+}
+
+message CreditAssure {
+  string account_id = 1;
+  qmt.common.SecurityAccountType account_type = 2;
+  int32 assure_status = 3;
+  int32 exchange_id = 4;
+  double assure_ratio = 5;
+  string instrument_id = 6;
+}
+
+message GetCreditAssuresResponse {
+  repeated CreditAssure instruments = 1;
+  qmt.common.Status status = 2;
+}
+
 message GetNewPurchaseLimitsRequest {
   string session_id = 1;
 }
@@ -271,6 +391,11 @@ service TradingService {
   rpc GetStockPositions(GetStockPositionsRequest) returns (GetStockPositionsResponse);
   rpc GetStockOrders(GetStockOrdersRequest) returns (GetStockOrdersResponse);
   rpc GetStockTrades(GetStockTradesRequest) returns (GetStockTradesResponse);
+  rpc GetCreditDetail(GetCreditDetailRequest) returns (GetCreditDetailResponse);
+  rpc GetCreditCompacts(CreditInstrumentFilterRequest) returns (GetCreditCompactsResponse);
+  rpc GetCreditSubjects(CreditInstrumentFilterRequest) returns (GetCreditSubjectsResponse);
+  rpc GetCreditSloCodes(CreditInstrumentFilterRequest) returns (GetCreditSloCodesResponse);
+  rpc GetCreditAssures(CreditInstrumentFilterRequest) returns (GetCreditAssuresResponse);
   rpc GetNewPurchaseLimits(GetNewPurchaseLimitsRequest) returns (GetNewPurchaseLimitsResponse);
   rpc GetIpoData(GetIpoDataRequest) returns (GetIpoDataResponse);
   rpc SubmitStockOrder(SubmitStockOrderRequest) returns (SubmitStockOrderResponse);

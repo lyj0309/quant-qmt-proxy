@@ -4,12 +4,56 @@ import time
 import pytest
 
 from app.config import Settings
-from app.services.contracts import CancelStockOrderCommand, OpenSessionCommand, SubmitStockOrderCommand
-from app.services import trading_event_hub as event_hub_module
+from app.models.api_requests import SubmitStockOrderRequestModel
+from app.services.credit import credit_symbol_matches
+from app.services import (
+    trading_event_hub as event_hub_module,
+    trading_session_manager as manager_module,
+)
+from app.services.contracts import (
+    CancelStockOrderCommand,
+    OpenSessionCommand,
+    SubmitStockOrderCommand,
+)
 from app.services.trading_event_hub import TradingEventHub
-from app.services import trading_session_manager as manager_module
 from app.services.trading_session_manager import TradingSessionManager
 from app.utils.exceptions import TradingServiceException
+
+
+class FakeCreditDetail:
+    account_id = "CREDIT-001"
+    account_type = 3
+    status = 0
+    update_time = 1
+    calc_config = 0
+    frozen_cash = 100.0
+    balance = 200000.0
+    available = 80000.0
+    position_profit = 1000.0
+    market_value = 120000.0
+    fetch_balance = 0.0
+    stock_value = 120000.0
+    fund_value = 0.0
+    total_debt = 50000.0
+    enable_bail_balance = 70000.0
+    per_assurescale_value = 3.0
+    assure_asset = 150000.0
+    fin_debt = 40000.0
+    fin_deal_avl = 39000.0
+    fin_fee = 1000.0
+    slo_debt = 10000.0
+    slo_market_value = 9500.0
+    slo_fee = 500.0
+    other_fare = 0.0
+    fin_max_quota = 200000.0
+    fin_enable_quota = 100000.0
+    fin_used_quota = 100000.0
+    slo_max_quota = 100000.0
+    slo_enable_quota = 80000.0
+    slo_used_quota = 20000.0
+    slo_sell_balance = 10000.0
+    used_slo_sell_balance = 5000.0
+    surplus_slo_sell_balance = 5000.0
 
 
 class FakeGateway:
@@ -45,6 +89,21 @@ class FakeGateway:
         return []
 
     def query_stock_trades(self):
+        return []
+
+    def query_credit_detail(self):
+        return [FakeCreditDetail()]
+
+    def query_credit_compacts(self):
+        return []
+
+    def query_credit_subjects(self):
+        return []
+
+    def query_credit_slo_codes(self):
+        return []
+
+    def query_credit_assures(self):
         return []
 
     def query_new_purchase_limit(self):
@@ -185,6 +244,17 @@ def real_account():
     }
 
 
+def credit_account():
+    return {
+        "name": "credit-dev",
+        "account_id": "CREDIT-001",
+        "account_type": "CREDIT",
+        "account_kind": "simulated",
+        "allowed_modes": ["dev"],
+        "enabled": True,
+    }
+
+
 def test_open_session_uses_real_gateway_in_dev_for_registered_simulated_account(monkeypatch):
     monkeypatch.setattr(manager_module, "XTTraderGateway", FakeGateway)
     monkeypatch.setattr(manager_module, "XTQUANT_TRADER_AVAILABLE", True)
@@ -249,6 +319,72 @@ def test_submit_order_calls_gateway_in_dev_simulated_mode(monkeypatch):
     assert gateway.order_calls[0]["stock_code"] == "000001.SZ"
     assert gateway.order_calls[0]["order_volume"] == 100
     assert gateway.order_calls[0]["price"] == 12.34
+
+
+def test_credit_session_exposes_detail_and_accepts_financing_action(monkeypatch):
+    monkeypatch.setattr(manager_module, "XTTraderGateway", FakeGateway)
+    monkeypatch.setattr(manager_module, "XTQUANT_TRADER_AVAILABLE", True)
+    manager = TradingSessionManager(
+        build_settings("dev", accounts=[credit_account()]), TradingEventHub()
+    )
+    session = manager.open_session(
+        OpenSessionCommand(account_id="CREDIT-001", account_type="CREDIT")
+    )
+
+    detail = manager.get_credit_detail(session["session_id"])[0]
+    assert detail["total_debt"] == 50000.0
+    assert detail["maintenance_collateral_ratio"] == 3.0
+    manager.submit_stock_order(
+        SubmitStockOrderCommand(
+            session_id=session["session_id"],
+            stock_code="000001.SZ",
+            side=27,
+            price_type=11,
+            volume=100,
+            price=12.34,
+        )
+    )
+    gateway = manager._sessions[session["session_id"]].gateway
+    assert gateway is not None
+    assert gateway.order_calls[0]["order_type"] == 27
+
+
+def test_stock_session_rejects_credit_order_action(monkeypatch):
+    monkeypatch.setattr(manager_module, "XTTraderGateway", FakeGateway)
+    monkeypatch.setattr(manager_module, "XTQUANT_TRADER_AVAILABLE", True)
+    manager = TradingSessionManager(
+        build_settings("dev", accounts=[simulated_account()]), TradingEventHub()
+    )
+    session = manager.open_session(OpenSessionCommand(account_id="SIM-001"))
+
+    with pytest.raises(TradingServiceException) as exc:
+        manager.submit_stock_order(
+            SubmitStockOrderCommand(
+                session_id=session["session_id"],
+                stock_code="000001.SZ",
+                side=27,
+                price_type=11,
+                volume=100,
+                price=12.34,
+            )
+        )
+    assert exc.value.error_code == "CREDIT_ACCOUNT_REQUIRED"
+
+
+def test_rest_credit_action_requires_matching_side():
+    with pytest.raises(ValueError, match="requires side=BUY"):
+        SubmitStockOrderRequestModel(
+            stock_code="000001.SZ",
+            side="SELL",
+            price_type=11,
+            volume=100,
+            price=12.34,
+            credit_action=27,
+        )
+
+
+def test_credit_symbol_filter_matches_bare_xtquant_instrument_id():
+    assert credit_symbol_matches("000001", frozenset({"000001.SZ"})) is True
 
 
 def test_prod_real_account_is_readonly_by_default(monkeypatch):
@@ -318,7 +454,8 @@ def test_cancel_by_sysid_normalizes_market_to_xt_enum(monkeypatch):
         )
     )
     assert result.accepted is True
-    assert result.confirmed is False
+    assert result.confirmed is True
+    assert result.still_cancelable is False
 
     gateway = manager._sessions[session["session_id"]].gateway
     assert gateway is not None
@@ -495,6 +632,77 @@ def test_stock_asset_callback_uses_payload_without_sync_requery(monkeypatch):
 
     assert stored_session.asset is not None
     assert stored_session.asset["cash"] == 123456.0
+
+
+def test_terminal_order_cancel_error_is_idempotent_order_update():
+    hub = TradingEventHub()
+    manager = TradingSessionManager(build_settings("mock"), hub)
+    session = manager.open_session(OpenSessionCommand(account_id="mock-account"))
+    session_id = session["session_id"]
+    stored_session = manager._sessions[session_id]
+    stored_session.orders["7788"] = {
+        "account_id": "mock-account",
+        "stock_code": "113650.SH",
+        "instrument_name": "",
+        "order_id": "7788",
+        "order_sysid": "SYS-7788",
+        "order_time_ms": 0,
+        "order_type": 23,
+        "order_volume": 10,
+        "price_type": 11,
+        "price": 126.53,
+        "traded_volume": 10,
+        "traded_price": 126.53,
+        "order_status_code": 56,
+        "status_msg": "filled",
+        "strategy_name": "",
+        "order_remark": "",
+        "direction": "",
+        "offset_flag": "",
+        "secu_account": "mock-account",
+    }
+    _, events = hub.register(session_id)
+
+    class CancelError:
+        account_id = "mock-account"
+        order_id = 7788
+        order_sysid = "SYS-7788"
+        error_id = -54
+        error_msg = "[COUNTER] [251020][委托状态错误不能撤单] [old_entrust_status=8]"
+
+    manager._handle_gateway_event(session_id, "cancel_error", CancelError())
+
+    event = events.get_nowait()
+    assert event["event_type"] == "order_update"
+    assert event["payload"]["order_id"] == "7788"
+    assert event["payload"]["order_status_code"] == 56
+
+
+def test_open_order_cancel_error_remains_error_event():
+    hub = TradingEventHub()
+    manager = TradingSessionManager(build_settings("mock"), hub)
+    session = manager.open_session(OpenSessionCommand(account_id="mock-account"))
+    session_id = session["session_id"]
+    stored_session = manager._sessions[session_id]
+    stored_session.orders["7788"] = {
+        "order_id": "7788",
+        "order_sysid": "SYS-7788",
+        "order_status_code": 50,
+    }
+    _, events = hub.register(session_id)
+
+    class CancelError:
+        account_id = "mock-account"
+        order_id = 7788
+        order_sysid = "SYS-7788"
+        error_id = 1001
+        error_msg = "real cancel failure"
+
+    manager._handle_gateway_event(session_id, "cancel_error", CancelError())
+
+    event = events.get_nowait()
+    assert event["event_type"] == "cancel_error"
+    assert event["payload"]["error_id"] == 1001
 
 
 def test_trading_event_queue_overflow_emits_warning(monkeypatch):

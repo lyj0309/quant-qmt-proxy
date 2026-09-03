@@ -1,8 +1,17 @@
 from __future__ import annotations
 
 import uuid
-from typing import Any, Callable
 
+from collections.abc import Callable, Sequence
+from typing import Any, cast
+
+from app.services.credit import (
+    CreditAssureRaw,
+    CreditCompactRaw,
+    CreditDetailRaw,
+    CreditSloCodeRaw,
+    CreditSubjectRaw,
+)
 from app.utils.logger import logger
 
 try:
@@ -67,7 +76,6 @@ class TraderCallbackBridge(XtQuantTraderCallback):
         self._emit("order_error", order_error)
 
     def on_cancel_error(self, cancel_error):
-        logger.error(f"xttrader 撤单失败: {getattr(cancel_error, 'error_msg', cancel_error)}")
         self._emit("cancel_error", cancel_error)
 
 
@@ -183,6 +191,51 @@ class XTTraderGateway:
     def query_stock_positions(self) -> Any:
         self.ensure_connected()
         return self.trader.query_stock_positions(self.account)
+
+    def query_credit_detail(self) -> Sequence[CreditDetailRaw]:
+        """Return credit assets for the connected credit account."""
+        self._require_credit_account()
+        return cast(
+            Sequence[CreditDetailRaw],
+            self.trader.query_credit_detail(self.account) or (),
+        )
+
+    def query_credit_compacts(self) -> Sequence[CreditCompactRaw]:
+        """Return outstanding financing and securities-lending contracts."""
+        self._require_credit_account()
+        return cast(
+            Sequence[CreditCompactRaw],
+            self.trader.query_stk_compacts(self.account) or (),
+        )
+
+    def query_credit_subjects(self) -> Sequence[CreditSubjectRaw]:
+        """Return margin-eligible instruments and their margin ratios."""
+        self._require_credit_account()
+        return cast(
+            Sequence[CreditSubjectRaw],
+            self.trader.query_credit_subjects(self.account) or (),
+        )
+
+    def query_credit_slo_codes(self) -> Sequence[CreditSloCodeRaw]:
+        """Return currently available securities-lending inventory."""
+        self._require_credit_account()
+        return cast(
+            Sequence[CreditSloCodeRaw],
+            self.trader.query_credit_slo_code(self.account) or (),
+        )
+
+    def query_credit_assures(self) -> Sequence[CreditAssureRaw]:
+        """Return collateral-eligible instruments and conversion ratios."""
+        self._require_credit_account()
+        return cast(
+            Sequence[CreditAssureRaw],
+            self.trader.query_credit_assure(self.account) or (),
+        )
+
+    def _require_credit_account(self) -> None:
+        self.ensure_connected()
+        if self.account_type != "CREDIT":
+            raise RuntimeError("信用查询只允许 CREDIT 账户")
 
     def query_new_purchase_limit(self) -> Any:
         self.ensure_connected()

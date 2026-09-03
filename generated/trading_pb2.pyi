@@ -29,7 +29,7 @@ class SessionInfo(_message.Message):
     account_kind: str
     orders_enabled: bool
     account_profile: str
-    def __init__(self, session_id: _Optional[str] = ..., account_id: _Optional[str] = ..., account_type: _Optional[_Union[_common_pb2.SecurityAccountType, str]] = ..., is_real: _Optional[bool] = ..., mode: _Optional[str] = ..., opened_at_ms: _Optional[int] = ..., environment: _Optional[str] = ..., account_kind: _Optional[str] = ..., orders_enabled: _Optional[bool] = ..., account_profile: _Optional[str] = ...) -> None: ...
+    def __init__(self, session_id: _Optional[str] = ..., account_id: _Optional[str] = ..., account_type: _Optional[_Union[_common_pb2.SecurityAccountType, str]] = ..., is_real: bool = ..., mode: _Optional[str] = ..., opened_at_ms: _Optional[int] = ..., environment: _Optional[str] = ..., account_kind: _Optional[str] = ..., orders_enabled: bool = ..., account_profile: _Optional[str] = ...) -> None: ...
 
 class OpenSessionRequest(_message.Message):
     __slots__ = ("account_id", "account_type")
@@ -59,7 +59,7 @@ class CloseSessionResponse(_message.Message):
     STATUS_FIELD_NUMBER: _ClassVar[int]
     success: bool
     status: _common_pb2.Status
-    def __init__(self, success: _Optional[bool] = ..., status: _Optional[_Union[_common_pb2.Status, _Mapping]] = ...) -> None: ...
+    def __init__(self, success: bool = ..., status: _Optional[_Union[_common_pb2.Status, _Mapping]] = ...) -> None: ...
 
 class GetSessionRequest(_message.Message):
     __slots__ = ("session_id",)
@@ -159,7 +159,7 @@ class GetStockOrdersRequest(_message.Message):
     CANCELABLE_ONLY_FIELD_NUMBER: _ClassVar[int]
     session_id: str
     cancelable_only: bool
-    def __init__(self, session_id: _Optional[str] = ..., cancelable_only: _Optional[bool] = ...) -> None: ...
+    def __init__(self, session_id: _Optional[str] = ..., cancelable_only: bool = ...) -> None: ...
 
 class StockOrder(_message.Message):
     __slots__ = ("account_id", "stock_code", "instrument_name", "order_id", "order_sysid", "order_time_ms", "order_type", "order_volume", "price_type", "price", "traded_volume", "traded_price", "order_status_code", "status_msg", "strategy_name", "order_remark", "direction", "offset_flag", "secu_account")
@@ -262,6 +262,222 @@ class GetStockTradesResponse(_message.Message):
     trades: _containers.RepeatedCompositeFieldContainer[StockTrade]
     status: _common_pb2.Status
     def __init__(self, trades: _Optional[_Iterable[_Union[StockTrade, _Mapping]]] = ..., status: _Optional[_Union[_common_pb2.Status, _Mapping]] = ...) -> None: ...
+
+class GetCreditDetailRequest(_message.Message):
+    __slots__ = ("session_id",)
+    SESSION_ID_FIELD_NUMBER: _ClassVar[int]
+    session_id: str
+    def __init__(self, session_id: _Optional[str] = ...) -> None: ...
+
+class CreditDetail(_message.Message):
+    __slots__ = ("account_id", "account_type", "status_code", "update_time", "calc_config", "frozen_cash", "balance", "available", "position_profit", "market_value", "fetch_balance", "stock_value", "fund_value", "total_debt", "enable_bail_balance", "maintenance_collateral_ratio", "assure_asset", "financing_debt", "financing_principal", "financing_fee", "securities_lending_debt", "securities_lending_market_value", "securities_lending_fee", "other_fee", "financing_max_quota", "financing_available_quota", "financing_used_quota", "securities_lending_max_quota", "securities_lending_available_quota", "securities_lending_used_quota", "short_sale_cash", "used_short_sale_cash", "remaining_short_sale_cash")
+    ACCOUNT_ID_FIELD_NUMBER: _ClassVar[int]
+    ACCOUNT_TYPE_FIELD_NUMBER: _ClassVar[int]
+    STATUS_CODE_FIELD_NUMBER: _ClassVar[int]
+    UPDATE_TIME_FIELD_NUMBER: _ClassVar[int]
+    CALC_CONFIG_FIELD_NUMBER: _ClassVar[int]
+    FROZEN_CASH_FIELD_NUMBER: _ClassVar[int]
+    BALANCE_FIELD_NUMBER: _ClassVar[int]
+    AVAILABLE_FIELD_NUMBER: _ClassVar[int]
+    POSITION_PROFIT_FIELD_NUMBER: _ClassVar[int]
+    MARKET_VALUE_FIELD_NUMBER: _ClassVar[int]
+    FETCH_BALANCE_FIELD_NUMBER: _ClassVar[int]
+    STOCK_VALUE_FIELD_NUMBER: _ClassVar[int]
+    FUND_VALUE_FIELD_NUMBER: _ClassVar[int]
+    TOTAL_DEBT_FIELD_NUMBER: _ClassVar[int]
+    ENABLE_BAIL_BALANCE_FIELD_NUMBER: _ClassVar[int]
+    MAINTENANCE_COLLATERAL_RATIO_FIELD_NUMBER: _ClassVar[int]
+    ASSURE_ASSET_FIELD_NUMBER: _ClassVar[int]
+    FINANCING_DEBT_FIELD_NUMBER: _ClassVar[int]
+    FINANCING_PRINCIPAL_FIELD_NUMBER: _ClassVar[int]
+    FINANCING_FEE_FIELD_NUMBER: _ClassVar[int]
+    SECURITIES_LENDING_DEBT_FIELD_NUMBER: _ClassVar[int]
+    SECURITIES_LENDING_MARKET_VALUE_FIELD_NUMBER: _ClassVar[int]
+    SECURITIES_LENDING_FEE_FIELD_NUMBER: _ClassVar[int]
+    OTHER_FEE_FIELD_NUMBER: _ClassVar[int]
+    FINANCING_MAX_QUOTA_FIELD_NUMBER: _ClassVar[int]
+    FINANCING_AVAILABLE_QUOTA_FIELD_NUMBER: _ClassVar[int]
+    FINANCING_USED_QUOTA_FIELD_NUMBER: _ClassVar[int]
+    SECURITIES_LENDING_MAX_QUOTA_FIELD_NUMBER: _ClassVar[int]
+    SECURITIES_LENDING_AVAILABLE_QUOTA_FIELD_NUMBER: _ClassVar[int]
+    SECURITIES_LENDING_USED_QUOTA_FIELD_NUMBER: _ClassVar[int]
+    SHORT_SALE_CASH_FIELD_NUMBER: _ClassVar[int]
+    USED_SHORT_SALE_CASH_FIELD_NUMBER: _ClassVar[int]
+    REMAINING_SHORT_SALE_CASH_FIELD_NUMBER: _ClassVar[int]
+    account_id: str
+    account_type: _common_pb2.SecurityAccountType
+    status_code: int
+    update_time: int
+    calc_config: int
+    frozen_cash: float
+    balance: float
+    available: float
+    position_profit: float
+    market_value: float
+    fetch_balance: float
+    stock_value: float
+    fund_value: float
+    total_debt: float
+    enable_bail_balance: float
+    maintenance_collateral_ratio: float
+    assure_asset: float
+    financing_debt: float
+    financing_principal: float
+    financing_fee: float
+    securities_lending_debt: float
+    securities_lending_market_value: float
+    securities_lending_fee: float
+    other_fee: float
+    financing_max_quota: float
+    financing_available_quota: float
+    financing_used_quota: float
+    securities_lending_max_quota: float
+    securities_lending_available_quota: float
+    securities_lending_used_quota: float
+    short_sale_cash: float
+    used_short_sale_cash: float
+    remaining_short_sale_cash: float
+    def __init__(self, account_id: _Optional[str] = ..., account_type: _Optional[_Union[_common_pb2.SecurityAccountType, str]] = ..., status_code: _Optional[int] = ..., update_time: _Optional[int] = ..., calc_config: _Optional[int] = ..., frozen_cash: _Optional[float] = ..., balance: _Optional[float] = ..., available: _Optional[float] = ..., position_profit: _Optional[float] = ..., market_value: _Optional[float] = ..., fetch_balance: _Optional[float] = ..., stock_value: _Optional[float] = ..., fund_value: _Optional[float] = ..., total_debt: _Optional[float] = ..., enable_bail_balance: _Optional[float] = ..., maintenance_collateral_ratio: _Optional[float] = ..., assure_asset: _Optional[float] = ..., financing_debt: _Optional[float] = ..., financing_principal: _Optional[float] = ..., financing_fee: _Optional[float] = ..., securities_lending_debt: _Optional[float] = ..., securities_lending_market_value: _Optional[float] = ..., securities_lending_fee: _Optional[float] = ..., other_fee: _Optional[float] = ..., financing_max_quota: _Optional[float] = ..., financing_available_quota: _Optional[float] = ..., financing_used_quota: _Optional[float] = ..., securities_lending_max_quota: _Optional[float] = ..., securities_lending_available_quota: _Optional[float] = ..., securities_lending_used_quota: _Optional[float] = ..., short_sale_cash: _Optional[float] = ..., used_short_sale_cash: _Optional[float] = ..., remaining_short_sale_cash: _Optional[float] = ...) -> None: ...
+
+class GetCreditDetailResponse(_message.Message):
+    __slots__ = ("details", "status")
+    DETAILS_FIELD_NUMBER: _ClassVar[int]
+    STATUS_FIELD_NUMBER: _ClassVar[int]
+    details: _containers.RepeatedCompositeFieldContainer[CreditDetail]
+    status: _common_pb2.Status
+    def __init__(self, details: _Optional[_Iterable[_Union[CreditDetail, _Mapping]]] = ..., status: _Optional[_Union[_common_pb2.Status, _Mapping]] = ...) -> None: ...
+
+class CreditInstrumentFilterRequest(_message.Message):
+    __slots__ = ("session_id", "instrument_ids")
+    SESSION_ID_FIELD_NUMBER: _ClassVar[int]
+    INSTRUMENT_IDS_FIELD_NUMBER: _ClassVar[int]
+    session_id: str
+    instrument_ids: _containers.RepeatedScalarFieldContainer[str]
+    def __init__(self, session_id: _Optional[str] = ..., instrument_ids: _Optional[_Iterable[str]] = ...) -> None: ...
+
+class CreditCompact(_message.Message):
+    __slots__ = ("account_id", "account_type", "compact_type", "cashgroup_prop", "exchange_id", "open_date", "business_volume", "outstanding_volume", "due_date", "business_balance", "business_fee", "outstanding_balance", "outstanding_fee", "repaid_fee", "repaid_balance", "instrument_id", "compact_id", "position_str")
+    ACCOUNT_ID_FIELD_NUMBER: _ClassVar[int]
+    ACCOUNT_TYPE_FIELD_NUMBER: _ClassVar[int]
+    COMPACT_TYPE_FIELD_NUMBER: _ClassVar[int]
+    CASHGROUP_PROP_FIELD_NUMBER: _ClassVar[int]
+    EXCHANGE_ID_FIELD_NUMBER: _ClassVar[int]
+    OPEN_DATE_FIELD_NUMBER: _ClassVar[int]
+    BUSINESS_VOLUME_FIELD_NUMBER: _ClassVar[int]
+    OUTSTANDING_VOLUME_FIELD_NUMBER: _ClassVar[int]
+    DUE_DATE_FIELD_NUMBER: _ClassVar[int]
+    BUSINESS_BALANCE_FIELD_NUMBER: _ClassVar[int]
+    BUSINESS_FEE_FIELD_NUMBER: _ClassVar[int]
+    OUTSTANDING_BALANCE_FIELD_NUMBER: _ClassVar[int]
+    OUTSTANDING_FEE_FIELD_NUMBER: _ClassVar[int]
+    REPAID_FEE_FIELD_NUMBER: _ClassVar[int]
+    REPAID_BALANCE_FIELD_NUMBER: _ClassVar[int]
+    INSTRUMENT_ID_FIELD_NUMBER: _ClassVar[int]
+    COMPACT_ID_FIELD_NUMBER: _ClassVar[int]
+    POSITION_STR_FIELD_NUMBER: _ClassVar[int]
+    account_id: str
+    account_type: _common_pb2.SecurityAccountType
+    compact_type: int
+    cashgroup_prop: int
+    exchange_id: int
+    open_date: int
+    business_volume: int
+    outstanding_volume: int
+    due_date: int
+    business_balance: float
+    business_fee: float
+    outstanding_balance: float
+    outstanding_fee: float
+    repaid_fee: float
+    repaid_balance: float
+    instrument_id: str
+    compact_id: str
+    position_str: str
+    def __init__(self, account_id: _Optional[str] = ..., account_type: _Optional[_Union[_common_pb2.SecurityAccountType, str]] = ..., compact_type: _Optional[int] = ..., cashgroup_prop: _Optional[int] = ..., exchange_id: _Optional[int] = ..., open_date: _Optional[int] = ..., business_volume: _Optional[int] = ..., outstanding_volume: _Optional[int] = ..., due_date: _Optional[int] = ..., business_balance: _Optional[float] = ..., business_fee: _Optional[float] = ..., outstanding_balance: _Optional[float] = ..., outstanding_fee: _Optional[float] = ..., repaid_fee: _Optional[float] = ..., repaid_balance: _Optional[float] = ..., instrument_id: _Optional[str] = ..., compact_id: _Optional[str] = ..., position_str: _Optional[str] = ...) -> None: ...
+
+class GetCreditCompactsResponse(_message.Message):
+    __slots__ = ("compacts", "status")
+    COMPACTS_FIELD_NUMBER: _ClassVar[int]
+    STATUS_FIELD_NUMBER: _ClassVar[int]
+    compacts: _containers.RepeatedCompositeFieldContainer[CreditCompact]
+    status: _common_pb2.Status
+    def __init__(self, compacts: _Optional[_Iterable[_Union[CreditCompact, _Mapping]]] = ..., status: _Optional[_Union[_common_pb2.Status, _Mapping]] = ...) -> None: ...
+
+class CreditSubject(_message.Message):
+    __slots__ = ("account_id", "account_type", "short_sell_status", "financing_status", "exchange_id", "short_sell_margin_ratio", "financing_margin_ratio", "instrument_id")
+    ACCOUNT_ID_FIELD_NUMBER: _ClassVar[int]
+    ACCOUNT_TYPE_FIELD_NUMBER: _ClassVar[int]
+    SHORT_SELL_STATUS_FIELD_NUMBER: _ClassVar[int]
+    FINANCING_STATUS_FIELD_NUMBER: _ClassVar[int]
+    EXCHANGE_ID_FIELD_NUMBER: _ClassVar[int]
+    SHORT_SELL_MARGIN_RATIO_FIELD_NUMBER: _ClassVar[int]
+    FINANCING_MARGIN_RATIO_FIELD_NUMBER: _ClassVar[int]
+    INSTRUMENT_ID_FIELD_NUMBER: _ClassVar[int]
+    account_id: str
+    account_type: _common_pb2.SecurityAccountType
+    short_sell_status: int
+    financing_status: int
+    exchange_id: int
+    short_sell_margin_ratio: float
+    financing_margin_ratio: float
+    instrument_id: str
+    def __init__(self, account_id: _Optional[str] = ..., account_type: _Optional[_Union[_common_pb2.SecurityAccountType, str]] = ..., short_sell_status: _Optional[int] = ..., financing_status: _Optional[int] = ..., exchange_id: _Optional[int] = ..., short_sell_margin_ratio: _Optional[float] = ..., financing_margin_ratio: _Optional[float] = ..., instrument_id: _Optional[str] = ...) -> None: ...
+
+class GetCreditSubjectsResponse(_message.Message):
+    __slots__ = ("subjects", "status")
+    SUBJECTS_FIELD_NUMBER: _ClassVar[int]
+    STATUS_FIELD_NUMBER: _ClassVar[int]
+    subjects: _containers.RepeatedCompositeFieldContainer[CreditSubject]
+    status: _common_pb2.Status
+    def __init__(self, subjects: _Optional[_Iterable[_Union[CreditSubject, _Mapping]]] = ..., status: _Optional[_Union[_common_pb2.Status, _Mapping]] = ...) -> None: ...
+
+class CreditSloCode(_message.Message):
+    __slots__ = ("account_id", "account_type", "cashgroup_prop", "exchange_id", "available_quantity", "instrument_id")
+    ACCOUNT_ID_FIELD_NUMBER: _ClassVar[int]
+    ACCOUNT_TYPE_FIELD_NUMBER: _ClassVar[int]
+    CASHGROUP_PROP_FIELD_NUMBER: _ClassVar[int]
+    EXCHANGE_ID_FIELD_NUMBER: _ClassVar[int]
+    AVAILABLE_QUANTITY_FIELD_NUMBER: _ClassVar[int]
+    INSTRUMENT_ID_FIELD_NUMBER: _ClassVar[int]
+    account_id: str
+    account_type: _common_pb2.SecurityAccountType
+    cashgroup_prop: int
+    exchange_id: int
+    available_quantity: int
+    instrument_id: str
+    def __init__(self, account_id: _Optional[str] = ..., account_type: _Optional[_Union[_common_pb2.SecurityAccountType, str]] = ..., cashgroup_prop: _Optional[int] = ..., exchange_id: _Optional[int] = ..., available_quantity: _Optional[int] = ..., instrument_id: _Optional[str] = ...) -> None: ...
+
+class GetCreditSloCodesResponse(_message.Message):
+    __slots__ = ("instruments", "status")
+    INSTRUMENTS_FIELD_NUMBER: _ClassVar[int]
+    STATUS_FIELD_NUMBER: _ClassVar[int]
+    instruments: _containers.RepeatedCompositeFieldContainer[CreditSloCode]
+    status: _common_pb2.Status
+    def __init__(self, instruments: _Optional[_Iterable[_Union[CreditSloCode, _Mapping]]] = ..., status: _Optional[_Union[_common_pb2.Status, _Mapping]] = ...) -> None: ...
+
+class CreditAssure(_message.Message):
+    __slots__ = ("account_id", "account_type", "assure_status", "exchange_id", "assure_ratio", "instrument_id")
+    ACCOUNT_ID_FIELD_NUMBER: _ClassVar[int]
+    ACCOUNT_TYPE_FIELD_NUMBER: _ClassVar[int]
+    ASSURE_STATUS_FIELD_NUMBER: _ClassVar[int]
+    EXCHANGE_ID_FIELD_NUMBER: _ClassVar[int]
+    ASSURE_RATIO_FIELD_NUMBER: _ClassVar[int]
+    INSTRUMENT_ID_FIELD_NUMBER: _ClassVar[int]
+    account_id: str
+    account_type: _common_pb2.SecurityAccountType
+    assure_status: int
+    exchange_id: int
+    assure_ratio: float
+    instrument_id: str
+    def __init__(self, account_id: _Optional[str] = ..., account_type: _Optional[_Union[_common_pb2.SecurityAccountType, str]] = ..., assure_status: _Optional[int] = ..., exchange_id: _Optional[int] = ..., assure_ratio: _Optional[float] = ..., instrument_id: _Optional[str] = ...) -> None: ...
+
+class GetCreditAssuresResponse(_message.Message):
+    __slots__ = ("instruments", "status")
+    INSTRUMENTS_FIELD_NUMBER: _ClassVar[int]
+    STATUS_FIELD_NUMBER: _ClassVar[int]
+    instruments: _containers.RepeatedCompositeFieldContainer[CreditAssure]
+    status: _common_pb2.Status
+    def __init__(self, instruments: _Optional[_Iterable[_Union[CreditAssure, _Mapping]]] = ..., status: _Optional[_Union[_common_pb2.Status, _Mapping]] = ...) -> None: ...
 
 class GetNewPurchaseLimitsRequest(_message.Message):
     __slots__ = ("session_id",)
@@ -379,7 +595,7 @@ class CancelStockOrderResponse(_message.Message):
     latest_order: StockOrder
     still_cancelable: bool
     message: str
-    def __init__(self, success: _Optional[bool] = ..., status: _Optional[_Union[_common_pb2.Status, _Mapping]] = ..., confirmed: _Optional[bool] = ..., has_latest_order: _Optional[bool] = ..., latest_order: _Optional[_Union[StockOrder, _Mapping]] = ..., still_cancelable: _Optional[bool] = ..., message: _Optional[str] = ...) -> None: ...
+    def __init__(self, success: bool = ..., status: _Optional[_Union[_common_pb2.Status, _Mapping]] = ..., confirmed: bool = ..., has_latest_order: bool = ..., latest_order: _Optional[_Union[StockOrder, _Mapping]] = ..., still_cancelable: bool = ..., message: _Optional[str] = ...) -> None: ...
 
 class StreamTradingEventsRequest(_message.Message):
     __slots__ = ("session_id",)

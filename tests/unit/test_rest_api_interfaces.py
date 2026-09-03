@@ -6,7 +6,6 @@ import pytest
 
 from tests.conftest import RestTestContext, XtTestRuntime
 
-
 REST_TESTED_ENDPOINTS = {
     "/api/v1/data/kline-history",
     "/api/v1/data/tick-history",
@@ -29,8 +28,35 @@ REST_TESTED_ENDPOINTS = {
     "/api/v1/trading/sessions/{session_id}/positions",
     "/api/v1/trading/sessions/{session_id}/orders",
     "/api/v1/trading/sessions/{session_id}/trades",
+    "/api/v1/trading/sessions/{session_id}/credit/detail",
+    "/api/v1/trading/sessions/{session_id}/credit/compacts",
+    "/api/v1/trading/sessions/{session_id}/credit/subjects",
+    "/api/v1/trading/sessions/{session_id}/credit/slo-codes",
+    "/api/v1/trading/sessions/{session_id}/credit/assures",
     "/api/v1/trading/sessions/{session_id}/cancel",
 }
+
+
+def test_rest_credit_query_interfaces(rest_test_context: RestTestContext):
+    if rest_test_context.runtime.is_real:
+        pytest.skip("credit interface inventory uses an isolated mock session")
+    session_id = _open_rest_session(
+        rest_test_context, "mock-credit-account", "CREDIT"
+    )
+    paths = (
+        "detail",
+        "compacts?instrument_id=000001.SZ",
+        "subjects?instrument_id=000001.SZ",
+        "slo-codes?instrument_id=000001.SZ",
+        "assures?instrument_id=000001.SZ",
+    )
+    for suffix in paths:
+        data = _request_json(
+            rest_test_context,
+            "get",
+            f"/api/v1/trading/sessions/{session_id}/credit/{suffix}",
+        )
+        assert data["items"] == []
 
 
 def _skip_if_live_streams_disabled(runtime: XtTestRuntime) -> None:

@@ -32,12 +32,53 @@ GRPC_TESTED_METHODS = {
     "GetStockPositions",
     "GetStockOrders",
     "GetStockTrades",
+    "GetCreditDetail",
+    "GetCreditCompacts",
+    "GetCreditSubjects",
+    "GetCreditSloCodes",
+    "GetCreditAssures",
     "GetNewPurchaseLimits",
     "GetIpoData",
     "SubmitStockOrder",
     "CancelStockOrder",
     "StreamTradingEvents",
 }
+
+
+def test_grpc_credit_query_interfaces(grpc_test_context: GrpcTestContext):
+    if grpc_test_context.runtime.is_real:
+        pytest.skip("credit interface inventory uses an isolated mock session")
+    open_response = _open_grpc_session(
+        grpc_test_context, "mock-credit-account", "CREDIT"
+    )
+    session_id = open_response.session.session_id
+    filter_request = trading_pb2.CreditInstrumentFilterRequest(
+        session_id=session_id,
+        instrument_ids=["000001.SZ"],
+    )
+
+    detail = grpc_test_context.trading_stub.GetCreditDetail(
+        trading_pb2.GetCreditDetailRequest(session_id=session_id),
+        metadata=grpc_test_context.metadata,
+    )
+    compacts = grpc_test_context.trading_stub.GetCreditCompacts(
+        filter_request, metadata=grpc_test_context.metadata
+    )
+    subjects = grpc_test_context.trading_stub.GetCreditSubjects(
+        filter_request, metadata=grpc_test_context.metadata
+    )
+    slo_codes = grpc_test_context.trading_stub.GetCreditSloCodes(
+        filter_request, metadata=grpc_test_context.metadata
+    )
+    assures = grpc_test_context.trading_stub.GetCreditAssures(
+        filter_request, metadata=grpc_test_context.metadata
+    )
+
+    assert detail.status.code == 0
+    assert compacts.status.code == 0
+    assert subjects.status.code == 0
+    assert slo_codes.status.code == 0
+    assert assures.status.code == 0
 
 
 def _skip_if_live_streams_disabled(runtime: XtTestRuntime) -> None:

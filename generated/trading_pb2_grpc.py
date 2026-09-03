@@ -3,7 +3,7 @@
 import grpc
 import warnings
 
-from . import trading_pb2 as trading__pb2
+import generated.trading_pb2 as trading__pb2
 
 GRPC_GENERATED_VERSION = '1.80.0'
 GRPC_VERSION = grpc.__version__
@@ -68,6 +68,31 @@ class TradingServiceStub(object):
                 '/qmt.trading.TradingService/GetStockTrades',
                 request_serializer=trading__pb2.GetStockTradesRequest.SerializeToString,
                 response_deserializer=trading__pb2.GetStockTradesResponse.FromString,
+                _registered_method=True)
+        self.GetCreditDetail = channel.unary_unary(
+                '/qmt.trading.TradingService/GetCreditDetail',
+                request_serializer=trading__pb2.GetCreditDetailRequest.SerializeToString,
+                response_deserializer=trading__pb2.GetCreditDetailResponse.FromString,
+                _registered_method=True)
+        self.GetCreditCompacts = channel.unary_unary(
+                '/qmt.trading.TradingService/GetCreditCompacts',
+                request_serializer=trading__pb2.CreditInstrumentFilterRequest.SerializeToString,
+                response_deserializer=trading__pb2.GetCreditCompactsResponse.FromString,
+                _registered_method=True)
+        self.GetCreditSubjects = channel.unary_unary(
+                '/qmt.trading.TradingService/GetCreditSubjects',
+                request_serializer=trading__pb2.CreditInstrumentFilterRequest.SerializeToString,
+                response_deserializer=trading__pb2.GetCreditSubjectsResponse.FromString,
+                _registered_method=True)
+        self.GetCreditSloCodes = channel.unary_unary(
+                '/qmt.trading.TradingService/GetCreditSloCodes',
+                request_serializer=trading__pb2.CreditInstrumentFilterRequest.SerializeToString,
+                response_deserializer=trading__pb2.GetCreditSloCodesResponse.FromString,
+                _registered_method=True)
+        self.GetCreditAssures = channel.unary_unary(
+                '/qmt.trading.TradingService/GetCreditAssures',
+                request_serializer=trading__pb2.CreditInstrumentFilterRequest.SerializeToString,
+                response_deserializer=trading__pb2.GetCreditAssuresResponse.FromString,
                 _registered_method=True)
         self.GetNewPurchaseLimits = channel.unary_unary(
                 '/qmt.trading.TradingService/GetNewPurchaseLimits',
@@ -141,6 +166,36 @@ class TradingServiceServicer(object):
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
+    def GetCreditDetail(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def GetCreditCompacts(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def GetCreditSubjects(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def GetCreditSloCodes(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def GetCreditAssures(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
     def GetNewPurchaseLimits(self, request, context):
         """Missing associated documentation comment in .proto file."""
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
@@ -208,6 +263,31 @@ def add_TradingServiceServicer_to_server(servicer, server):
                     servicer.GetStockTrades,
                     request_deserializer=trading__pb2.GetStockTradesRequest.FromString,
                     response_serializer=trading__pb2.GetStockTradesResponse.SerializeToString,
+            ),
+            'GetCreditDetail': grpc.unary_unary_rpc_method_handler(
+                    servicer.GetCreditDetail,
+                    request_deserializer=trading__pb2.GetCreditDetailRequest.FromString,
+                    response_serializer=trading__pb2.GetCreditDetailResponse.SerializeToString,
+            ),
+            'GetCreditCompacts': grpc.unary_unary_rpc_method_handler(
+                    servicer.GetCreditCompacts,
+                    request_deserializer=trading__pb2.CreditInstrumentFilterRequest.FromString,
+                    response_serializer=trading__pb2.GetCreditCompactsResponse.SerializeToString,
+            ),
+            'GetCreditSubjects': grpc.unary_unary_rpc_method_handler(
+                    servicer.GetCreditSubjects,
+                    request_deserializer=trading__pb2.CreditInstrumentFilterRequest.FromString,
+                    response_serializer=trading__pb2.GetCreditSubjectsResponse.SerializeToString,
+            ),
+            'GetCreditSloCodes': grpc.unary_unary_rpc_method_handler(
+                    servicer.GetCreditSloCodes,
+                    request_deserializer=trading__pb2.CreditInstrumentFilterRequest.FromString,
+                    response_serializer=trading__pb2.GetCreditSloCodesResponse.SerializeToString,
+            ),
+            'GetCreditAssures': grpc.unary_unary_rpc_method_handler(
+                    servicer.GetCreditAssures,
+                    request_deserializer=trading__pb2.CreditInstrumentFilterRequest.FromString,
+                    response_serializer=trading__pb2.GetCreditAssuresResponse.SerializeToString,
             ),
             'GetNewPurchaseLimits': grpc.unary_unary_rpc_method_handler(
                     servicer.GetNewPurchaseLimits,
@@ -424,6 +504,141 @@ class TradingService(object):
             '/qmt.trading.TradingService/GetStockTrades',
             trading__pb2.GetStockTradesRequest.SerializeToString,
             trading__pb2.GetStockTradesResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def GetCreditDetail(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/qmt.trading.TradingService/GetCreditDetail',
+            trading__pb2.GetCreditDetailRequest.SerializeToString,
+            trading__pb2.GetCreditDetailResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def GetCreditCompacts(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/qmt.trading.TradingService/GetCreditCompacts',
+            trading__pb2.CreditInstrumentFilterRequest.SerializeToString,
+            trading__pb2.GetCreditCompactsResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def GetCreditSubjects(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/qmt.trading.TradingService/GetCreditSubjects',
+            trading__pb2.CreditInstrumentFilterRequest.SerializeToString,
+            trading__pb2.GetCreditSubjectsResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def GetCreditSloCodes(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/qmt.trading.TradingService/GetCreditSloCodes',
+            trading__pb2.CreditInstrumentFilterRequest.SerializeToString,
+            trading__pb2.GetCreditSloCodesResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def GetCreditAssures(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/qmt.trading.TradingService/GetCreditAssures',
+            trading__pb2.CreditInstrumentFilterRequest.SerializeToString,
+            trading__pb2.GetCreditAssuresResponse.FromString,
             options,
             channel_credentials,
             insecure,

@@ -95,6 +95,84 @@ class TradingGrpcService(trading_pb2_grpc.TradingServiceServicer):
         except TradingServiceException as exc:
             return self._error_response(context, exc, trading_pb2.GetStockTradesResponse)
 
+    def GetCreditDetail(self, request, context):
+        try:
+            details = self.trading_manager.get_credit_detail(request.session_id)
+            return trading_pb2.GetCreditDetailResponse(
+                details=[trading_pb2.CreditDetail(**item) for item in details],
+                status=self._status(),
+            )
+        except TradingServiceException as exc:
+            return self._error_response(context, exc, trading_pb2.GetCreditDetailResponse)
+
+    def GetCreditCompacts(self, request, context):
+        try:
+            compacts = self.trading_manager.get_credit_compacts(
+                request.session_id,
+                tuple(request.instrument_ids),
+            )
+            return trading_pb2.GetCreditCompactsResponse(
+                compacts=[trading_pb2.CreditCompact(**item) for item in compacts],
+                status=self._status(),
+            )
+        except TradingServiceException as exc:
+            return self._error_response(
+                context,
+                exc,
+                trading_pb2.GetCreditCompactsResponse,
+            )
+
+    def GetCreditSubjects(self, request, context):
+        try:
+            subjects = self.trading_manager.get_credit_subjects(
+                request.session_id,
+                tuple(request.instrument_ids),
+            )
+            return trading_pb2.GetCreditSubjectsResponse(
+                subjects=[trading_pb2.CreditSubject(**item) for item in subjects],
+                status=self._status(),
+            )
+        except TradingServiceException as exc:
+            return self._error_response(
+                context,
+                exc,
+                trading_pb2.GetCreditSubjectsResponse,
+            )
+
+    def GetCreditSloCodes(self, request, context):
+        try:
+            instruments = self.trading_manager.get_credit_slo_codes(
+                request.session_id,
+                tuple(request.instrument_ids),
+            )
+            return trading_pb2.GetCreditSloCodesResponse(
+                instruments=[trading_pb2.CreditSloCode(**item) for item in instruments],
+                status=self._status(),
+            )
+        except TradingServiceException as exc:
+            return self._error_response(
+                context,
+                exc,
+                trading_pb2.GetCreditSloCodesResponse,
+            )
+
+    def GetCreditAssures(self, request, context):
+        try:
+            instruments = self.trading_manager.get_credit_assures(
+                request.session_id,
+                tuple(request.instrument_ids),
+            )
+            return trading_pb2.GetCreditAssuresResponse(
+                instruments=[trading_pb2.CreditAssure(**item) for item in instruments],
+                status=self._status(),
+            )
+        except TradingServiceException as exc:
+            return self._error_response(
+                context,
+                exc,
+                trading_pb2.GetCreditAssuresResponse,
+            )
+
     def GetNewPurchaseLimits(self, request, context):
         try:
             limits = self.trading_manager.get_new_purchase_limits(request.session_id)
@@ -321,6 +399,8 @@ class TradingGrpcService(trading_pb2_grpc.TradingServiceServicer):
         if exc.error_code == "XTTRADER_UNAVAILABLE":
             return grpc.StatusCode.UNAVAILABLE
         if exc.error_code == "TRADER_NOT_CONNECTED":
+            return grpc.StatusCode.FAILED_PRECONDITION
+        if exc.error_code == "CREDIT_ACCOUNT_REQUIRED":
             return grpc.StatusCode.FAILED_PRECONDITION
         return grpc.StatusCode.INVALID_ARGUMENT
 

@@ -1,6 +1,10 @@
 from __future__ import annotations
 
-from pydantic import BaseModel, Field, field_validator
+from typing import Self
+
+from pydantic import BaseModel, Field, field_validator, model_validator
+
+from app.services.credit import CreditOrderAction
 
 
 class OpenSessionRequestModel(BaseModel):
@@ -16,6 +20,7 @@ class SubmitStockOrderRequestModel(BaseModel):
     price: float = 0.0
     strategy_name: str = ""
     order_remark: str = ""
+    credit_action: CreditOrderAction | None = None
 
     @field_validator("side")
     @classmethod
@@ -24,6 +29,18 @@ class SubmitStockOrderRequestModel(BaseModel):
         if normalized not in {"BUY", "SELL"}:
             raise ValueError("side 必须是 BUY 或 SELL")
         return normalized
+
+    @model_validator(mode="after")
+    def validate_credit_side(self) -> Self:
+        if (
+            self.credit_action is not None
+            and self.side != self.credit_action.expected_side
+        ):
+            raise ValueError(
+                f"credit_action={self.credit_action.name} requires "
+                f"side={self.credit_action.expected_side}"
+            )
+        return self
 
 
 class CancelStockOrderRequestModel(BaseModel):

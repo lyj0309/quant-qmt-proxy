@@ -22,6 +22,14 @@ def build_settings(api_keys=None) -> Settings:
 def test_proto_enum_values_match_xtquant_contract():
     assert common_pb2.ORDER_SIDE_BUY == 23
     assert common_pb2.ORDER_SIDE_SELL == 24
+    assert common_pb2.ORDER_SIDE_CREDIT_FINANCING_BUY == 27
+    assert common_pb2.ORDER_SIDE_CREDIT_SHORT_SELL == 28
+    assert common_pb2.ORDER_SIDE_CREDIT_BUY_TO_REPAY_SECURITIES == 29
+    assert common_pb2.ORDER_SIDE_CREDIT_DIRECT_REPAY_SECURITIES == 30
+    assert common_pb2.ORDER_SIDE_CREDIT_SELL_TO_REPAY_CASH == 31
+    assert common_pb2.ORDER_SIDE_CREDIT_DIRECT_REPAY_CASH == 32
+    assert common_pb2.ORDER_SIDE_CREDIT_SPECIAL_FINANCING_BUY == 40
+    assert common_pb2.ORDER_SIDE_CREDIT_SPECIAL_DIRECT_REPAY_CASH == 45
     assert common_pb2.STOCK_PRICE_TYPE_FIX_PRICE == 11
     assert common_pb2.STOCK_PRICE_TYPE_LATEST_PRICE == 5
     assert common_pb2.STOCK_PRICE_TYPE_MARKET_SZ_FULL_OR_CANCEL == 48
@@ -159,4 +167,3 @@ def test_grpc_auth_interceptor_requires_bearer_token():
     finally:
         server.stop(0)
         reset_services()
-
