@@ -39,6 +39,8 @@ xtquant:
     whole_quote_enabled: false
     # Optional same-host latest-quote mmap written directly from whole-market ticks.
     shared_quote_path:
+    # mmap (legacy default), raw_grpc (no mmap/normalization), dual (shadow only)
+    quote_transport: mmap
     shared_quote_capacity: 65536
     shared_quote_markets: ["SH", "SZ"]
   trading:

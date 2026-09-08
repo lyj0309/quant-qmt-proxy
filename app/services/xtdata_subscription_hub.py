@@ -63,13 +63,17 @@ class XtDataSubscriptionHub:
         self.raw_quotes = RawQuotePublisher()
 
     def start_shared_quote_publisher(self) -> None:
+        """Start the common native source and only the explicitly selected sinks."""
         path = self.settings.xtquant.data.shared_quote_path
-        if not path or self._shared_quote_thread is not None:
+        transport = self.settings.xtquant.data.quote_transport
+        if self._shared_quote_thread is not None:
             return
-        self._shared_quote_store = SharedQuoteStore(
-            Path(path),
-            self.settings.xtquant.data.shared_quote_capacity,
-        )
+        if not path and not transport.raw_enabled:
+            return
+        if path and transport.mmap_enabled:
+            self._shared_quote_store = SharedQuoteStore(
+                Path(path), self.settings.xtquant.data.shared_quote_capacity,
+            )
         self._shared_quote_stop.clear()
         self._shared_quote_thread = threading.Thread(
             target=self._run_shared_quote_publisher,
@@ -233,6 +237,7 @@ class XtDataSubscriptionHub:
 
     def shutdown(self) -> None:
         self._shared_quote_stop.set()
+        self.raw_quotes.invalidate()
         shared_thread = self._shared_quote_thread
         if shared_thread is not None and shared_thread is not threading.current_thread():
             shared_thread.join(timeout=2.0)
@@ -384,11 +389,16 @@ class XtDataSubscriptionHub:
 
         def callback(payload: dict[str, Any]) -> None:
             received_at_ns = time.time_ns()
-            if record.shared_quote_sink:
+            transport = self.settings.xtquant.data.quote_transport
+            if record.shared_quote_sink and transport.raw_enabled:
                 try:
                     self.raw_quotes.publish(payload, received_at_ns)
                 except (ValueError, TypeError, OverflowError, struct.error) as exc:
                     logger.error(f"raw quote callback rejected: {exc}")
+            if record.shared_quote_sink and not transport.mmap_enabled:
+                # The dedicated native source has no legacy protobuf consumers.
+                # Raw-only must not normalize rows or touch the mmap writer.
+                return
             event_time_ms = int(time.time() * 1000)
             for event in self._iter_normalized_payload(
                 "tick",
@@ -435,6 +445,11 @@ class XtDataSubscriptionHub:
         consumer_queue: queue.Queue = queue.Queue(maxsize=self.settings.xtquant.data.max_queue_size)
         with self._lock:
             record = self._get_record(subscription_id)
+            if record.shared_quote_sink and not self.settings.xtquant.data.quote_transport.mmap_enabled:
+                raise DataServiceException(
+                    "raw quote source requires the raw gRPC stream",
+                    error_code="RAW_QUOTE_STREAM_REQUIRED",
+                )
             record.consumer_queues[consumer_id] = consumer_queue
             record.consumer_drop_counts[consumer_id] = 0
         return consumer_id, consumer_queue

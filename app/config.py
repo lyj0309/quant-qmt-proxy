@@ -10,7 +10,7 @@ from typing import Any
 
 import yaml
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 from app.utils.exceptions import ConfigurationException
 
@@ -48,6 +48,22 @@ class LoggingConfig(BaseModel):
     diagnose: bool = False
 
 
+class QuoteTransport(str, Enum):
+    """Choose output sinks explicitly; dual output is for shadow comparison."""
+
+    MMAP = "mmap"
+    RAW_GRPC = "raw_grpc"
+    DUAL = "dual"
+
+    @property
+    def raw_enabled(self) -> bool:
+        return self is not QuoteTransport.MMAP
+
+    @property
+    def mmap_enabled(self) -> bool:
+        return self is not QuoteTransport.RAW_GRPC
+
+
 class XTQuantDataConfig(BaseModel):
     path: str = "./data"
     config_path: str = "./xtquant/config"
@@ -59,8 +75,15 @@ class XTQuantDataConfig(BaseModel):
     heartbeat_interval: int = 60
     whole_quote_enabled: bool = False
     shared_quote_path: str | None = None
+    quote_transport: QuoteTransport = QuoteTransport.MMAP
     shared_quote_capacity: int = Field(default=65536, gt=0)
     shared_quote_markets: list[str] = Field(default_factory=lambda: ["SH", "SZ"])
+
+    @model_validator(mode="after")
+    def validate_quote_transport(self) -> XTQuantDataConfig:
+        if self.quote_transport is QuoteTransport.DUAL and not self.shared_quote_path:
+            raise ValueError("dual quote transport requires shared_quote_path")
+        return self
 
 
 class XTQuantTradingAccountConfig(BaseModel):
@@ -332,6 +355,7 @@ def load_config(
                 "shared_quote_capacity": xtquant_data_config.get(
                     "shared_quote_capacity", 65536
                 ),
+                "quote_transport": xtquant_data_config.get("quote_transport", "mmap"),
                 "shared_quote_markets": xtquant_data_config.get(
                     "shared_quote_markets", ["SH", "SZ"]
                 ),
