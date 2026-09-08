@@ -7,6 +7,7 @@ import sys
 import threading
 import time
 
+from dataclasses import asdict
 from pathlib import Path
 from typing import cast
 
@@ -51,9 +52,12 @@ def main() -> None:
             failures.append(str(exc))
 
     xtdata.enable_hello = False
+    snapshot = xtdata.get_full_tick(["SH", "SZ"])
+    publisher.initialize(snapshot, time.time_ns())
     subscription = xtdata.subscribe_whole_quote(["SH", "SZ"], callback=callback)
     if subscription < 0:
         raise RuntimeError("shadow subscription failed")
+    publisher.activate()
     threading.Thread(target=xtdata.run, daemon=True).start()
     listener = socket.socket()
     listener.bind(("127.0.0.1", 50060))
@@ -94,6 +98,7 @@ def main() -> None:
         json.dumps(
             {
                 "batches": len(counts),
+                "publisher": asdict(publisher.stats()),
                 "max_rows": max(counts, default=0),
                 "rows_per_batch": counts,
                 "callback_offsets_sec": offsets,

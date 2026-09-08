@@ -76,6 +76,9 @@ class XTQuantDataConfig(BaseModel):
     whole_quote_enabled: bool = False
     shared_quote_path: str | None = None
     quote_transport: QuoteTransport = QuoteTransport.MMAP
+    raw_quote_symbols: list[str] = Field(default_factory=list)
+    raw_queue_max_batches: int = Field(default=128, gt=0)
+    raw_queue_max_bytes: int = Field(default=32 * 1024 * 1024, ge=44)
     shared_quote_capacity: int = Field(default=65536, gt=0)
     shared_quote_markets: list[str] = Field(default_factory=lambda: ["SH", "SZ"])
 
@@ -269,6 +272,7 @@ def load_config(
     xtdc_port_override = _env_optional_int("QMT_XTDC_PORT")
     whole_quote_enabled_override = _env_optional_flag("QMT_WHOLE_QUOTE_ENABLED")
     shared_quote_path_override = os.getenv("QMT_SHARED_QUOTE_PATH")
+    quote_transport_override = os.getenv("QMT_QUOTE_TRANSPORT")
     api_keys_override = os.getenv("APP_API_KEYS")
     debug_override = os.getenv("APP_DEBUG")
     enable_prod_orders_override = os.getenv("APP_ENABLE_PROD_ORDERS")
@@ -355,7 +359,10 @@ def load_config(
                 "shared_quote_capacity": xtquant_data_config.get(
                     "shared_quote_capacity", 65536
                 ),
-                "quote_transport": xtquant_data_config.get("quote_transport", "mmap"),
+                "quote_transport": quote_transport_override or xtquant_data_config.get("quote_transport", "mmap"),
+                "raw_quote_symbols": xtquant_data_config.get("raw_quote_symbols", []),
+                "raw_queue_max_batches": xtquant_data_config.get("raw_queue_max_batches", 128),
+                "raw_queue_max_bytes": xtquant_data_config.get("raw_queue_max_bytes", 32 * 1024 * 1024),
                 "shared_quote_markets": xtquant_data_config.get(
                     "shared_quote_markets", ["SH", "SZ"]
                 ),

@@ -3,11 +3,19 @@ from __future__ import annotations
 import os
 import threading
 import time
+
 from datetime import datetime, timedelta
-from typing import Any
+from typing import Any, cast
 
 from app.config import Settings, XTQuantMode
-from app.services.contracts import FinancialDataQuery, KlineHistoryQuery, L2Query, TickHistoryQuery, TradingCalendarQuery
+from app.services.contracts import (
+    FinancialDataQuery,
+    KlineHistoryQuery,
+    L2Query,
+    TickHistoryQuery,
+    TradingCalendarQuery,
+)
+from app.services.raw_quote_publisher import NativeBatch
 from app.utils.exceptions import DataServiceException
 from app.utils.helpers import validate_stock_code
 from app.utils.logger import logger
@@ -243,6 +251,13 @@ class XtDataGateway:
             fill_data=False,
         )
         return self._format_tick_history(raw, query.symbols, query.fields)
+
+    def get_native_full_tick_snapshot(self, codes: list[str]) -> NativeBatch:
+        """Raw SDK snapshot boundary; publisher validates and owns selected fields."""
+        if self._is_mock_mode():
+            raise DataServiceException("raw snapshots require an injected mock provider")
+        self.ensure_ready()
+        return cast(NativeBatch, xtdata.get_full_tick(codes))
 
     def get_full_tick_snapshot(self, symbols: list[str]) -> list[dict[str, Any]]:
         if self._is_mock_mode():

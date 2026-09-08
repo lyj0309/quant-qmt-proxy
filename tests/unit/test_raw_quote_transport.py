@@ -24,6 +24,17 @@ def test_yaml_load_preserves_raw_transport(tmp_path: Path) -> None:
     assert settings.xtquant.data.quote_transport is QuoteTransport.RAW_GRPC
 
 
+def test_environment_selects_transport_without_changing_default_yaml(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    config = tmp_path / "transport.yml"
+    config.write_text("xtquant:\n  data:\n    quote_transport: mmap\nmodes:\n  mock:\n    xtquant_mode: mock\n")
+    monkeypatch.setenv("QMT_QUOTE_TRANSPORT", "raw_grpc")
+    settings = load_config(str(config), app_mode="mock", local_config_file=None)
+    assert settings.xtquant.data.quote_transport is QuoteTransport.RAW_GRPC
+
+
 def test_raw_internal_source_rejects_legacy_consumer() -> None:
     settings = Settings()
     settings.xtquant.data = XTQuantDataConfig(quote_transport=QuoteTransport.RAW_GRPC)
@@ -77,7 +88,14 @@ def test_native_callback_selects_only_configured_sinks(
         quote_transport=transport,
         shared_quote_path="unused.mmap",
     )
-    hub = XtDataSubscriptionHub(settings, XtDataGateway(settings))
+    hub = XtDataSubscriptionHub(
+        settings,
+        XtDataGateway(settings),
+        lambda codes: {
+            "600000.SH": {"time": 1788840000000},
+            "000001.SZ": {"time": 1788840000000},
+        },
+    )
     native = NativeAdapter()
     monkeypatch.setattr(hub_module, "xtdata", native)
     monkeypatch.setattr(hub_module, "XTQUANT_DATA_AVAILABLE", True)
