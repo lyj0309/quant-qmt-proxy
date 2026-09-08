@@ -5,6 +5,7 @@ import sys
 import threading
 import time
 
+from collections.abc import Iterator
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
@@ -23,6 +24,24 @@ def main() -> None:
     arrivals: list[float] = []
     encodes: list[float] = []
     wall_start, cpu_start = time.monotonic(), time.process_time()
+
+    def observed_stream(request: bytes, context: grpc.ServicerContext) -> Iterator[bytes]:
+        sent = 0
+        try:
+            for frame in publisher.stream(request, context):
+                sent += 1
+                yield frame
+        finally:
+            print(
+                json.dumps(
+                    {
+                        "stream_frames": sent,
+                        "code": str(context.code()),
+                        "details": str(context.details()),
+                    }
+                ),
+                flush=True,
+            )
 
     def callback(payload: NativeBatch) -> None:
         arrived = time.monotonic()
@@ -47,7 +66,7 @@ def main() -> None:
                     "qmt.data.RawQuoteService",
                     {
                         "Stream": grpc.unary_stream_rpc_method_handler(
-                            publisher.stream,
+                            observed_stream,
                             request_deserializer=identity,
                             response_serializer=identity,
                         )
