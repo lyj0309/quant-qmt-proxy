@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import queue
+import struct
 import threading
 import time
 import uuid
@@ -14,6 +15,7 @@ from typing import Any
 from app.config import Settings, XTQuantMode
 from app.services.contracts import QuoteSubscriptionSpec, WholeQuoteSubscriptionSpec
 from app.services.shared_quote_store import SharedQuoteStore
+from app.services.raw_quote_publisher import RawQuotePublisher
 from app.services.xtdata_gateway import XTQUANT_DATA_AVAILABLE, XtDataGateway, to_epoch_ms
 from app.utils.exceptions import DataServiceException
 from app.utils.logger import logger
@@ -58,6 +60,7 @@ class XtDataSubscriptionHub:
         self._shared_quote_stop = threading.Event()
         self._shared_quote_thread: threading.Thread | None = None
         self._shared_quote_capacity_warned = False
+        self.raw_quotes = RawQuotePublisher()
 
     def start_shared_quote_publisher(self) -> None:
         path = self.settings.xtquant.data.shared_quote_path
@@ -123,6 +126,7 @@ class XtDataSubscriptionHub:
                     self._runner_last_error = str(exc)
                     logger.error(f"xtdata.run stopped unexpectedly: {exc}")
                 finally:
+                    self.raw_quotes.invalidate()
                     with self._runner_lock:
                         self._runner_started = False
                         self._runner_thread = None
@@ -379,6 +383,12 @@ class XtDataSubscriptionHub:
         symbol_filter = frozenset(record.symbols)
 
         def callback(payload: dict[str, Any]) -> None:
+            received_at_ns = time.time_ns()
+            if record.shared_quote_sink:
+                try:
+                    self.raw_quotes.publish(payload, received_at_ns)
+                except (ValueError, TypeError, OverflowError, struct.error) as exc:
+                    logger.error(f"raw quote callback rejected: {exc}")
             event_time_ms = int(time.time() * 1000)
             for event in self._iter_normalized_payload(
                 "tick",
