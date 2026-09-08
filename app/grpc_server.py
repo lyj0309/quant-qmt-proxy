@@ -12,10 +12,12 @@ from app.dependencies import (
     get_market_data_service,
     get_reference_data_service,
     get_trading_session_manager,
+    get_subscription_hub,
 )
 from app.grpc_services.data_grpc_service import DataGrpcService
 from app.grpc_services.health_grpc_service import HealthGrpcService
 from app.grpc_services.trading_grpc_service import TradingGrpcService
+from app.services.raw_quote_publisher import identity
 from app.utils.logger import configure_logging_from_settings, log_runtime_configuration, logger
 from generated import data_pb2_grpc, health_pb2_grpc, trading_pb2_grpc
 
@@ -230,6 +232,18 @@ def create_grpc_server(settings: Settings | None = None) -> grpc.Server:
     bound_port = server.add_insecure_port(server_address)
     if bound_port == 0:
         raise RuntimeError(f"failed to bind gRPC server to {server_address}")
+    if settings.xtquant.data.quote_transport.raw_enabled:
+        hub = get_subscription_hub(settings)
+        server.add_generic_rpc_handlers(
+            (grpc.method_handlers_generic_handler(
+                "qmt.data.RawQuoteService",
+                {"Stream": grpc.unary_stream_rpc_method_handler(
+                    hub.raw_quotes.stream,
+                    request_deserializer=identity,
+                    response_serializer=identity,
+                )},
+            ),)
+        )
     setattr(server, "_bound_port", bound_port)
     logger.info(f"gRPC server configured on {settings.grpc_host}:{bound_port}")
     return server

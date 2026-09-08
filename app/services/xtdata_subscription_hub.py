@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import queue
+import struct
 import threading
 import time
 import uuid
@@ -13,6 +14,7 @@ from typing import Any
 
 from app.config import Settings, XTQuantMode
 from app.services.contracts import QuoteSubscriptionSpec, WholeQuoteSubscriptionSpec
+from app.services.raw_quote_publisher import NativeBatch, QueueLimits, RawQuotePublisher
 from app.services.shared_quote_store import SharedQuoteStore
 from app.services.xtdata_gateway import XTQUANT_DATA_AVAILABLE, XtDataGateway, to_epoch_ms
 from app.utils.exceptions import DataServiceException
@@ -44,7 +46,10 @@ class SubscriptionRecord:
 
 
 class XtDataSubscriptionHub:
-    def __init__(self, settings: Settings, gateway: XtDataGateway):
+    def __init__(
+        self, settings: Settings, gateway: XtDataGateway,
+        raw_snapshot_loader: Callable[[list[str]], NativeBatch] | None = None,
+    ):
         self.settings = settings
         self.gateway = gateway
         self._lock = threading.RLock()
@@ -58,15 +63,24 @@ class XtDataSubscriptionHub:
         self._shared_quote_stop = threading.Event()
         self._shared_quote_thread: threading.Thread | None = None
         self._shared_quote_capacity_warned = False
+        self.raw_quotes = RawQuotePublisher(QueueLimits(
+            settings.xtquant.data.raw_queue_max_batches,
+            settings.xtquant.data.raw_queue_max_bytes,
+        ))
+        self._raw_snapshot_loader = raw_snapshot_loader
 
     def start_shared_quote_publisher(self) -> None:
+        """Start the common native source and only the explicitly selected sinks."""
         path = self.settings.xtquant.data.shared_quote_path
-        if not path or self._shared_quote_thread is not None:
+        transport = self.settings.xtquant.data.quote_transport
+        if self._shared_quote_thread is not None:
             return
-        self._shared_quote_store = SharedQuoteStore(
-            Path(path),
-            self.settings.xtquant.data.shared_quote_capacity,
-        )
+        if not path and not transport.raw_enabled:
+            return
+        if path and transport.mmap_enabled:
+            self._shared_quote_store = SharedQuoteStore(
+                Path(path), self.settings.xtquant.data.shared_quote_capacity,
+            )
         self._shared_quote_stop.clear()
         self._shared_quote_thread = threading.Thread(
             target=self._run_shared_quote_publisher,
@@ -81,6 +95,11 @@ class XtDataSubscriptionHub:
 
     def _run_shared_quote_publisher(self) -> None:
         while not self._shared_quote_stop.is_set():
+            if (self._shared_quote_subscription_id is not None
+                and self.settings.xtquant.data.quote_transport.raw_enabled
+                and not self.raw_quotes.stats().ready):
+                self.delete_subscription(self._shared_quote_subscription_id)
+                self._shared_quote_subscription_id = None
             if self._shared_quote_subscription_id is None:
                 try:
                     self._shared_quote_subscription_id = (
@@ -123,6 +142,7 @@ class XtDataSubscriptionHub:
                     self._runner_last_error = str(exc)
                     logger.error(f"xtdata.run stopped unexpectedly: {exc}")
                 finally:
+                    self.raw_quotes.invalidate()
                     with self._runner_lock:
                         self._runner_started = False
                         self._runner_thread = None
@@ -229,6 +249,7 @@ class XtDataSubscriptionHub:
 
     def shutdown(self) -> None:
         self._shared_quote_stop.set()
+        self.raw_quotes.invalidate()
         shared_thread = self._shared_quote_thread
         if shared_thread is not None and shared_thread is not threading.current_thread():
             shared_thread.join(timeout=2.0)
@@ -377,8 +398,37 @@ class XtDataSubscriptionHub:
             raise DataServiceException("xtquant.xtdata is unavailable", error_code="XTDATA_UNAVAILABLE")
         self._start_runtime_if_needed()
         symbol_filter = frozenset(record.symbols)
+        raw_enabled = record.shared_quote_sink and self.settings.xtquant.data.quote_transport.raw_enabled
+        raw_symbols = frozenset(
+            symbol.strip().upper() for symbol in self.settings.xtquant.data.raw_quote_symbols if symbol.strip()
+        )
+        raw_epoch: bytes | None = None
+        if raw_enabled:
+            requested = sorted(raw_symbols) or record.markets or ["SH", "SZ"]
+            loader = self._raw_snapshot_loader or self.gateway.get_native_full_tick_snapshot
+            snapshot = loader(requested)
+            if raw_symbols:
+                snapshot = {symbol: row for symbol, row in snapshot.items() if symbol in raw_symbols}
+            if not raw_symbols and any(
+                not any(symbol.endswith(f".{market}") for symbol in snapshot)
+                for market in requested
+            ):
+                raise ValueError("raw quote snapshot missing requested market")
+            raw_epoch = self.raw_quotes.initialize(snapshot, time.time_ns(), sorted(raw_symbols))
 
         def callback(payload: dict[str, Any]) -> None:
+            received_at_ns = time.time_ns()
+            transport = self.settings.xtquant.data.quote_transport
+            if record.shared_quote_sink and transport.raw_enabled:
+                try:
+                    selected = {symbol: row for symbol, row in payload.items() if symbol in raw_symbols} if raw_symbols else payload
+                    self.raw_quotes.publish(selected, received_at_ns, raw_epoch)
+                except (ValueError, TypeError, OverflowError, struct.error, RuntimeError) as exc:
+                    logger.error(f"raw quote callback rejected: {exc}")
+            if record.shared_quote_sink and not transport.mmap_enabled:
+                # The dedicated native source has no legacy protobuf consumers.
+                # Raw-only must not normalize rows or touch the mmap writer.
+                return
             event_time_ms = int(time.time() * 1000)
             for event in self._iter_normalized_payload(
                 "tick",
@@ -402,8 +452,16 @@ class XtDataSubscriptionHub:
 
         subid = xtdata.subscribe_whole_quote(record.markets or ["SH", "SZ"], callback=callback)
         if subid < 0:
+            if raw_enabled:
+                self.raw_quotes.invalidate()
             raise DataServiceException("xtdata whole-quote subscription failed", error_code="SUBSCRIPTION_FAILED")
         record.native_subids = [subid]
+        if raw_enabled:
+            try:
+                self.raw_quotes.activate()
+            except RuntimeError:
+                self._unsubscribe_native(record)
+                raise
         logger.info(
             f"native whole-quote subscription ready: id={record.subscription_id}, subids={record.native_subids}"
         )
@@ -425,6 +483,11 @@ class XtDataSubscriptionHub:
         consumer_queue: queue.Queue = queue.Queue(maxsize=self.settings.xtquant.data.max_queue_size)
         with self._lock:
             record = self._get_record(subscription_id)
+            if record.shared_quote_sink and not self.settings.xtquant.data.quote_transport.mmap_enabled:
+                raise DataServiceException(
+                    "raw quote source requires the raw gRPC stream",
+                    error_code="RAW_QUOTE_STREAM_REQUIRED",
+                )
             record.consumer_queues[consumer_id] = consumer_queue
             record.consumer_drop_counts[consumer_id] = 0
         return consumer_id, consumer_queue
