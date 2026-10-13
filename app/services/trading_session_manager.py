@@ -4,7 +4,7 @@ import threading
 import time
 import uuid
 
-from collections.abc import Callable, Iterator
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import IntEnum
@@ -32,7 +32,7 @@ from app.services.credit import (
     convert_credit_subject,
     credit_symbol_matches,
 )
-from app.services.trading_event_hub import TradingEventHub
+from app.services.trading_event_hub import TradingEventHub, TradingEventStream
 from app.services.xttrader_gateway import XTQUANT_TRADER_AVAILABLE, XTTraderGateway
 from app.utils.exceptions import TradingServiceException
 from app.utils.helpers import validate_stock_code
@@ -600,7 +600,7 @@ class TradingSessionManager:
         self,
         session_id: str,
         stop_checker: Callable[[], bool] | None = None,
-    ) -> Iterator[dict[str, Any]]:
+    ) -> TradingEventStream:
         self._get_session(session_id)
         stream = self.event_hub.stream(session_id, stop_checker=stop_checker)
         if not self._get_session_if_active(session_id):

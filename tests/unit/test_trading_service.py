@@ -705,7 +705,7 @@ def test_open_order_cancel_error_remains_error_event():
     assert event["payload"]["error_id"] == 1001
 
 
-def test_trading_event_queue_overflow_emits_warning(monkeypatch):
+def test_trading_event_queue_overflow_closes_stream_for_recovery(monkeypatch):
     hub = TradingEventHub(maxsize=1)
     consumer_id, consumer_queue = hub.register("session-test")
     warnings: list[str] = []
@@ -718,7 +718,9 @@ def test_trading_event_queue_overflow_emits_warning(monkeypatch):
     assert warnings
     assert "trading event queue overflow" in warnings[0]
     assert "session_id=session-test" in warnings[0]
-    assert consumer_queue.get_nowait()["seq"] == 2
+    assert consumer_queue.get_nowait() is hub.STREAM_CLOSED
+    hub.publish("session-test", {"seq": 3})
+    assert consumer_queue.empty()
     hub.unregister("session-test", consumer_id)
 
 

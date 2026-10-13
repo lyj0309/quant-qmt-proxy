@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import threading
-import time
 
 import grpc
 import pytest
@@ -444,9 +443,9 @@ def test_grpc_stream_trading_events_interface(
         trading_pb2.StreamTradingEventsRequest(session_id=session_id),
         metadata=grpc_test_context.metadata,
     )
+    assert dict(stream.initial_metadata())["x-qmt-trading-ready"] == "1"
 
     def submit_order() -> None:
-        time.sleep(0.05)
         grpc_test_context.trading_stub.SubmitStockOrder(
             trading_pb2.SubmitStockOrderRequest(
                 session_id=session_id,

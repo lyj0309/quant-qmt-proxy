@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from collections.abc import Iterator
+
 import grpc
 
 from app.services.contracts import (
@@ -244,11 +246,17 @@ class TradingGrpcService(trading_pb2_grpc.TradingServiceServicer):
         except TradingServiceException as exc:
             return self._error_response(context, exc, trading_pb2.CancelStockOrderResponse)
 
-    def StreamTradingEvents(self, request, context):
+    def StreamTradingEvents(
+        self, request: trading_pb2.StreamTradingEventsRequest, context: grpc.ServicerContext
+    ) -> Iterator[trading_pb2.TradingEvent]:
         try:
             stream = self.trading_manager.stream_events(request.session_id, stop_checker=context.is_active)
-            for event in stream:
-                yield self._to_trading_event(event)
+            try:
+                context.send_initial_metadata((("x-qmt-trading-ready", "1"),))
+                for event in stream:
+                    yield self._to_trading_event(event)
+            finally:
+                stream.close()
         except TradingServiceException as exc:
             context.set_code(self._grpc_status_for_error(exc))
             context.set_details(exc.message)
