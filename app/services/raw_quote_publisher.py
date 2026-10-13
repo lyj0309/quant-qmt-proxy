@@ -15,6 +15,8 @@ from enum import Enum, IntEnum
 
 import grpc
 
+from app.utils.logger import logger
+
 MAGIC = b"QBR1"
 HEADER = struct.Struct("<4sB3x16sQQI")
 ROW = struct.Struct("<16sqqqqqdI5q5q5q5q")
@@ -62,6 +64,7 @@ class PublisherStats:
     peak_consumer_batches: int
     peak_consumer_bytes: int
     overflows: int
+    quarantined_rows: int
 
 
 @dataclass(eq=False)
@@ -81,7 +84,7 @@ class Consumer:
 def number(row: Mapping[str, NativeValue], key: str) -> float:
     value = row.get(key, 0)
     if not isinstance(value, (int, float)) or not math.isfinite(value):
-        raise ValueError(f"invalid native quote field: {key}")
+        raise ValueError(f"invalid native quote field: {key}={value!r}")
     return float(value)
 
 
@@ -127,6 +130,9 @@ class RawQuotePublisher:
         self._lock = threading.Condition()
         self._limits = limits or QueueLimits()
         self._epoch = uuid.uuid4().bytes
+        # Native subscription identity must survive a cache cursor reset.
+        # Otherwise its valid callbacks would be mistaken for retired callbacks.
+        self._source_epoch = self._epoch
         self._sequence = 0
         self._latest: dict[str, bytes] = {}
         self._consumers: set[Consumer] = set()
@@ -134,6 +140,7 @@ class RawQuotePublisher:
         self._peak_batches = 0
         self._peak_bytes = 0
         self._overflows = 0
+        self._quarantined: set[str] = set()
 
     def stats(self) -> PublisherStats:
         with self._lock:
@@ -146,7 +153,30 @@ class RawQuotePublisher:
                 self._peak_batches,
                 self._peak_bytes,
                 self._overflows,
+                len(self._quarantined),
             )
+
+    def _encode_batch(
+        self, payload: NativeBatch, received_at_ns: int
+    ) -> tuple[dict[str, bytes], dict[str, str]]:
+        if received_at_ns <= 0:
+            raise ValueError("invalid native receipt timestamp")
+        encoded: dict[str, bytes] = {}
+        rejected: dict[str, str] = {}
+        for symbol, row in payload.items():
+            try:
+                encoded[symbol] = encode_row(symbol, row, received_at_ns)
+            except (ValueError, TypeError, OverflowError, struct.error) as exc:
+                rejected[symbol] = str(exc)
+        return encoded, rejected
+
+    def _reset_cursor(self) -> None:
+        """Keep valid cache but force consumers to seed counters again."""
+        self._epoch = uuid.uuid4().bytes
+        self._sequence = 0
+        for consumer in self._consumers:
+            consumer.fail(StreamFailure.RESET)
+        self._lock.notify_all()
 
     def initialize(
         self,
@@ -159,6 +189,8 @@ class RawQuotePublisher:
         For explicit subscriptions every required symbol must exist. Market-wide
         callers use the SDK full-market snapshot, not the first callback's keys.
         Activation is separate so a failed subscription never publishes readiness.
+        Invalid rows are absent, never zero-filled. A quarantine transition later
+        resets stream cursors so consumers cannot bridge cumulative-counter gaps.
         """
         self.invalidate()
         with self._lock:
@@ -167,14 +199,20 @@ class RawQuotePublisher:
             raise ValueError("raw quote snapshot empty or missing required symbols")
         if len(snapshot) > MAX_ROWS:
             raise ValueError("raw quote universe capacity exceeded")
-        encoded = {
-            symbol: encode_row(symbol, row, received_at_ns) for symbol, row in snapshot.items()
-        }
+        encoded, rejected = self._encode_batch(snapshot, received_at_ns)
+        if not encoded or not set(required_symbols).issubset(encoded):
+            raise ValueError("raw quote snapshot has no valid rows or invalid required symbols")
         with self._lock:
             if self._epoch != epoch:
                 raise RuntimeError("raw source reset during snapshot initialization")
             self._latest = encoded
+            self._quarantined = set(rejected)
             self._phase = SourcePhase.PREPARED
+            if rejected:
+                logger.warning(
+                    f"raw snapshot quarantined: rejected={len(rejected)}, "
+                    f"accepted={len(encoded)}, sample={list(rejected.items())[:8]}"
+                )
             return epoch
 
     def activate(self) -> None:
@@ -187,13 +225,11 @@ class RawQuotePublisher:
     def invalidate(self) -> None:
         """Discard incomplete state and force all clients to establish a baseline."""
         with self._lock:
-            self._epoch = uuid.uuid4().bytes
-            self._sequence = 0
+            self._reset_cursor()
+            self._source_epoch = self._epoch
             self._latest.clear()
+            self._quarantined.clear()
             self._phase = SourcePhase.EMPTY
-            for consumer in self._consumers:
-                consumer.fail(StreamFailure.RESET)
-            self._lock.notify_all()
 
     def publish(
         self, payload: NativeBatch, received_at_ns: int, epoch: bytes | None = None
@@ -201,18 +237,30 @@ class RawQuotePublisher:
         """Encode once per callback, sharing immutable bytes with all clients."""
         try:
             with self._lock:
-                if epoch is not None and epoch != self._epoch:
+                if epoch is not None and epoch != self._source_epoch:
                     return  # Late callback from a retired native subscription.
                 if self._phase is SourcePhase.EMPTY:
                     raise RuntimeError("raw quote source requires explicit snapshot initialization")
-                encoded = {
-                    symbol: encode_row(symbol, row, received_at_ns)
-                    for symbol, row in payload.items()
-                }
+                encoded, rejected = self._encode_batch(payload, received_at_ns)
+                removed = set(rejected).intersection(self._latest)
+                recovered = self._quarantined.intersection(encoded)
+                newly_rejected = set(rejected).difference(self._quarantined)
+                for symbol in removed:
+                    del self._latest[symbol]
+                self._quarantined.update(rejected)
+                self._quarantined.difference_update(encoded)
                 new_symbols = sum(symbol not in self._latest for symbol in encoded)
                 if len(self._latest) + new_symbols > MAX_ROWS:
                     raise ValueError("raw quote universe capacity exceeded")
                 self._latest.update(encoded)
+                if removed or recovered:
+                    self._reset_cursor()
+                if newly_rejected or recovered:
+                    logger.warning(
+                        f"raw quote quarantine changed: rejected={len(newly_rejected)}, "
+                        f"recovered={len(recovered)}, total={len(self._quarantined)}, "
+                        f"sample={[(symbol, rejected[symbol]) for symbol in sorted(newly_rejected)[:8]]}"
+                    )
                 self._sequence += 1
                 frame = self._frame(BatchKind.UPDATE, received_at_ns, tuple(encoded.values()))
                 for consumer in self._consumers:

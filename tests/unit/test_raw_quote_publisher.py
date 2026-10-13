@@ -114,15 +114,74 @@ def test_late_retired_source_callback_cannot_modify_new_epoch() -> None:
         stream.close()
 
 
-def test_rejected_source_requires_explicit_reinitialization() -> None:
+def test_rejected_receipt_requires_explicit_reinitialization() -> None:
     publisher = RawQuotePublisher()
     publisher.initialize(quote(), 1)
     publisher.activate()
-    with pytest.raises(ValueError, match="native time"):
-        publisher.publish({"600000.SH": {"time": 0}}, 2)
+    with pytest.raises(ValueError, match="receipt"):
+        publisher.publish(quote(), 0)
     assert not publisher.stats().ready
     with pytest.raises(RuntimeError, match="explicit snapshot"):
         publisher.publish(quote(), 3)
+
+
+@pytest.mark.parametrize("bad_price", [float("inf"), float("-inf"), float("nan"), "bad"])
+def test_bad_snapshot_row_is_quarantined_not_fabricated(bad_price: float | str) -> None:
+    publisher = RawQuotePublisher()
+    snapshot = dict(quote())
+    snapshot["110075.SH"] = {"time": 1788840000000, "lastPrice": bad_price}
+    publisher.initialize(snapshot, 1)
+    publisher.activate()
+    assert publisher.stats().quarantined_rows == 1
+    stream = publisher.stream(MAGIC, context())
+    try:
+        frame = next(stream)
+        assert HEADER.unpack_from(frame)[-1] == 1
+        assert ROW.unpack_from(frame, HEADER.size)[0].rstrip(b"\0") == b"600000.SH"
+    finally:
+        stream.close()
+    with pytest.raises(ValueError, match="invalid required symbols"):
+        publisher.initialize(snapshot, 2, ("110075.SH",))
+    assert not publisher.stats().ready
+
+
+def test_quarantine_transitions_reseed_and_native_callback_generation_survives() -> None:
+    publisher = RawQuotePublisher()
+    epoch = publisher.initialize(quote(("600000.SH", "000001.SZ")), 1)
+    publisher.activate()
+    stream = publisher.stream(MAGIC, context())
+    first = next(stream)
+    bad: NativeBatch = {"600000.SH": {"time": 1788840000000, "lastPrice": float("inf")}}
+    publisher.publish(bad, 2, epoch)
+    with pytest.raises(RuntimeError, match="source reset"):
+        next(stream)
+    assert publisher.stats().ready
+    assert publisher.stats().baseline_rows == 1
+    stream = publisher.stream(MAGIC, context())
+    baseline = next(stream)
+    assert HEADER.unpack_from(first)[2] != HEADER.unpack_from(baseline)[2]
+    publisher.publish(bad, 3, epoch)
+    assert HEADER.unpack_from(next(stream))[-1] == 0  # no repeated reset
+    publisher.publish(quote(volume=99), 4, epoch)
+    with pytest.raises(RuntimeError, match="source reset"):
+        next(stream)
+    assert publisher.stats().quarantined_rows == 0
+    stream = publisher.stream(MAGIC, context())
+    try:
+        baseline = next(stream)
+        assert HEADER.unpack_from(baseline)[-1] == 2
+        publisher.publish(quote(volume=100), 5, epoch)
+        update = next(stream)
+        assert ROW.unpack_from(update, HEADER.size)[5] == 100
+    finally:
+        stream.close()
+
+
+def test_all_invalid_snapshot_stays_unavailable() -> None:
+    publisher = RawQuotePublisher()
+    with pytest.raises(ValueError, match="no valid rows"):
+        publisher.initialize({"600000.SH": {"time": 0}}, 1)
+    assert not publisher.stats().ready
 
 
 @pytest.mark.parametrize(("batches", "byte_limit"), [(0, 1024), (1, HEADER.size - 1)])
