@@ -163,13 +163,11 @@ def test_quarantine_transitions_reseed_and_native_callback_generation_survives()
     publisher.publish(bad, 3, epoch)
     assert HEADER.unpack_from(next(stream))[-1] == 0  # no repeated reset
     publisher.publish(quote(volume=99), 4, epoch)
-    with pytest.raises(RuntimeError, match="source reset"):
-        next(stream)
+    recovered = next(stream)
+    assert HEADER.unpack_from(recovered)[2] == HEADER.unpack_from(baseline)[2]
+    assert ROW.unpack_from(recovered, HEADER.size)[5] == 99
     assert publisher.stats().quarantined_rows == 0
-    stream = publisher.stream(MAGIC, context())
     try:
-        baseline = next(stream)
-        assert HEADER.unpack_from(baseline)[-1] == 2
         publisher.publish(quote(volume=100), 5, epoch)
         update = next(stream)
         assert ROW.unpack_from(update, HEADER.size)[5] == 100

@@ -189,8 +189,8 @@ class RawQuotePublisher:
         For explicit subscriptions every required symbol must exist. Market-wide
         callers use the SDK full-market snapshot, not the first callback's keys.
         Activation is separate so a failed subscription never publishes readiness.
-        Invalid rows are absent, never zero-filled. A quarantine transition later
-        resets stream cursors so consumers cannot bridge cumulative-counter gaps.
+        Invalid rows are absent, never zero-filled. Removing a previously valid
+        row resets cursors; a newly valid symbol starts without a counter baseline.
         """
         self.invalidate()
         with self._lock:
@@ -253,7 +253,10 @@ class RawQuotePublisher:
                 if len(self._latest) + new_symbols > MAX_ROWS:
                     raise ValueError("raw quote universe capacity exceeded")
                 self._latest.update(encoded)
-                if removed or recovered:
+                # Removal invalidates old counters. Recovery does not: all live
+                # consumers have already reseeded without that symbol, so their
+                # first valid update seeds it without resetting unrelated stocks.
+                if removed:
                     self._reset_cursor()
                 if newly_rejected or recovered:
                     logger.warning(
